@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Path C:\\\\Projects\\\\RuralCareAI\\\\backend,C:\\\\Projects\\\\RuralCareAI\\\\scripts,C:\\\\Projects\\\\RuralCareAI\\\\tests,C:\\\\Projects\\\\RuralCareAI\\\\data -Recurse -File | Where-Object { $_.FullName -notmatch 'node_modules|__pycache__|\\\\.venv' } | ForEach-Object { $_.FullName.Replace\\('C:\\\\Projects\\\\RuralCareAI\\\\',''\\) + '  [' + $_.Length + ']' })"
+    ]
+  }
+}
