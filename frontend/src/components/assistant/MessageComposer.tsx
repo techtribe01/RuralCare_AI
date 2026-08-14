@@ -6,11 +6,9 @@ import { Textarea } from '../ui/Textarea'
 type MessageComposerProps = {
   onSubmit: (message: string) => Promise<void> | void
   loading?: boolean
-  voiceOpen?: boolean
-  onToggleVoice?: () => void
 }
 
-export function MessageComposer({ onSubmit, loading = false, voiceOpen = false, onToggleVoice }: MessageComposerProps) {
+export function MessageComposer({ onSubmit, loading = false }: MessageComposerProps) {
   const [value, setValue] = useState('')
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -41,16 +39,13 @@ export function MessageComposer({ onSubmit, loading = false, voiceOpen = false, 
         </Button>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant={voiceOpen ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={onToggleVoice}
-          aria-pressed={voiceOpen}
+        <a
+          href="tel:09513886363"
+          className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-border bg-surface px-4 text-sm font-medium text-text-primary shadow-xs transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800"
         >
           <Phone className="h-4 w-4" aria-hidden="true" />
-          Voice
-        </Button>
+          Talk by Voice
+        </a>
         <a
           href="tel:09513886363"
           className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-text-secondary transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800"

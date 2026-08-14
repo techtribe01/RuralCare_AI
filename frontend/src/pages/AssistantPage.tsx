@@ -39,8 +39,8 @@ export default function AssistantPage() {
     <PageContainer>
       <PageHeader
         eyebrow="Assistant"
-        title="How are you feeling today?"
-        description="Get a calm, practical next step for your health — in your language."
+        title="Assistant"
+        description="Share a concern or choose a way to connect with care."
         actions={
           <NavLink
             to="/help-safety"
@@ -51,8 +51,8 @@ export default function AssistantPage() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-        <div className="space-y-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0 space-y-4">
           {error ? (
             <Alert title="Assistant unavailable" variant="danger">
               {error}
@@ -63,7 +63,7 @@ export default function AssistantPage() {
             status={
               latestResponse ? 'Your care summary is ready' : 'Private guidance, whenever you need it'
             }
-            emptyState={<AssistantEmptyState onSendStarter={sendMessage} onOpenVoice={() => setVoiceOpen(true)} />}
+            emptyState={<AssistantEmptyState onSendStarter={sendMessage} />}
           >
             {messages.map((message, index) => {
               const isLatestAssistantTurn = index === lastAssistantIndex && Boolean(latestResponse)
@@ -113,12 +113,7 @@ export default function AssistantPage() {
 
           {voiceOpen ? <VoiceControl onClose={() => setVoiceOpen(false)} /> : null}
 
-          <MessageComposer
-            onSubmit={sendMessage}
-            loading={isThinking}
-            voiceOpen={voiceOpen}
-            onToggleVoice={() => setVoiceOpen((open) => !open)}
-          />
+          <MessageComposer onSubmit={sendMessage} loading={isThinking} />
         </div>
 
         <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">

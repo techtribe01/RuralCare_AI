@@ -1,9 +1,8 @@
-import { Activity, Building2, CalendarCheck, HeartPulse, Mic, Search, ShieldCheck } from 'lucide-react'
+import { Activity, Building2, CalendarCheck, HeartPulse, Phone, Search, ShieldCheck } from 'lucide-react'
 import { SuggestedAction } from './SuggestedAction'
 
 type AssistantEmptyStateProps = {
   onSendStarter: (message: string) => void
-  onOpenVoice: () => void
 }
 
 const actions = [
@@ -39,16 +38,15 @@ const tips = [
   { icon: HeartPulse, title: 'Small steps count', text: 'Drink water, rest when you can, and keep medicines in one place.' },
 ]
 
-export function AssistantEmptyState({ onSendStarter, onOpenVoice }: AssistantEmptyStateProps) {
+export function AssistantEmptyState({ onSendStarter }: AssistantEmptyStateProps) {
   return (
     <div className="w-full max-w-3xl py-4 sm:py-8">
       <div className="flex flex-col items-center text-center">
         <div className="flex size-14 items-center justify-center rounded-3xl bg-brand-100 text-brand-800 shadow-xs">
           <HeartPulse className="size-7" aria-hidden="true" />
         </div>
-        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Your calm care companion</p>
-        <h2 className="mt-2 max-w-lg text-balance text-2xl font-semibold tracking-[-0.03em] text-text-primary sm:text-3xl">Start with whatever is on your mind.</h2>
-        <p className="mt-3 max-w-md text-sm leading-6 text-text-secondary">Share a symptom, ask a question, or find your next care option. You do not need the perfect words.</p>
+        <h2 className="mt-2 max-w-lg text-balance text-2xl font-semibold tracking-[-0.03em] text-text-primary sm:text-3xl">How can we help?</h2>
+        <p className="mt-3 max-w-md text-sm leading-6 text-text-secondary">Choose an option below or type a message to get started.</p>
       </div>
 
       <div className="mt-8 grid w-full gap-3 sm:grid-cols-2">
@@ -61,13 +59,18 @@ export function AssistantEmptyState({ onSendStarter, onOpenVoice }: AssistantEmp
             onClick={() => onSendStarter(action.message)}
           />
         ))}
-        <SuggestedAction
-          label="Talk by voice"
-          description="Open the voice preview panel"
-          icon={Mic}
-          onClick={onOpenVoice}
-          className="sm:col-span-2"
-        />
+        <a
+          href="tel:09513886363"
+          className="group flex min-h-[72px] items-center gap-3 rounded-2xl border border-brand-200 bg-brand-50 px-4 text-left shadow-xs transition-colors hover:border-brand-300 hover:bg-brand-100 sm:col-span-2"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-white">
+            <Phone className="size-5" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-text-primary">Talk by voice</span>
+            <span className="mt-1 block text-xs text-text-secondary">Call 095-138-86363</span>
+          </span>
+        </a>
       </div>
 
       <div className="mt-8 border-t border-border/80 pt-6">
