@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { Mic, MessageSquareText, Send } from 'lucide-react'
+import { MessageSquareText, Phone, Send } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Textarea } from '../ui/Textarea'
-import { Tooltip } from '../ui/Tooltip'
 
 type MessageComposerProps = {
   onSubmit: (message: string) => Promise<void> | void
@@ -49,15 +48,23 @@ export function MessageComposer({ onSubmit, loading = false, voiceOpen = false, 
           onClick={onToggleVoice}
           aria-pressed={voiceOpen}
         >
-          <Mic className="h-4 w-4" aria-hidden="true" />
+          <Phone className="h-4 w-4" aria-hidden="true" />
           Voice
         </Button>
-        <Tooltip label="You can also text this assistant over SMS on a supported phone number.">
-          <span className="inline-flex min-h-[36px] cursor-default items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-text-secondary">
-            <MessageSquareText className="h-3.5 w-3.5" aria-hidden="true" />
-            SMS available
-          </span>
-        </Tooltip>
+        <a
+          href="tel:09513886363"
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-text-secondary transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800"
+        >
+          <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+          Call 095-138-86363
+        </a>
+        <a
+          href="sms:09513886363"
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-text-secondary transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800"
+        >
+          <MessageSquareText className="h-3.5 w-3.5" aria-hidden="true" />
+          SMS 095-138-86363
+        </a>
       </div>
     </form>
   )
