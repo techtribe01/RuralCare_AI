@@ -1,23 +1,41 @@
-type TextareaProps = {
+import { forwardRef, useId } from 'react'
+import type { TextareaHTMLAttributes } from 'react'
+import { cn } from '../../lib/utils'
+
+type TextareaProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange' | 'value'> & {
   label?: string
-  placeholder?: string
   value?: string
   onChange?: (value: string) => void
   ariaLabel?: string
 }
 
-export function Textarea({ label, placeholder, value, onChange, ariaLabel }: TextareaProps) {
-  return (
-    <label className="block space-y-2 text-sm font-medium text-slate-700">
-      {label ? <span>{label}</span> : null}
-      <textarea
-        aria-label={ariaLabel || label || 'Textarea'}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange?.(event.target.value)}
-        rows={4}
-        className="min-h-[120px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
-      />
-    </label>
-  )
-}
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
+  ({ label, value, onChange, ariaLabel, className, id, rows = 4, ...props }, ref) => {
+    const generatedId = useId()
+    const textareaId = id ?? generatedId
+
+    return (
+      <div className="space-y-1.5">
+        {label ? (
+          <label htmlFor={textareaId} className="block text-sm font-medium text-text-primary">
+            {label}
+          </label>
+        ) : null}
+        <textarea
+          ref={ref}
+          id={textareaId}
+          aria-label={ariaLabel || label || undefined}
+          value={value}
+          onChange={(event) => onChange?.(event.target.value)}
+          rows={rows}
+          className={cn(
+            'w-full resize-none rounded-lg border border-border-strong bg-surface px-3.5 py-3 text-sm text-text-primary placeholder:text-text-muted transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500',
+            className,
+          )}
+          {...props}
+        />
+      </div>
+    )
+  },
+)
+Textarea.displayName = 'Textarea'

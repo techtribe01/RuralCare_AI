@@ -1,28 +1,41 @@
-import type { ReactNode } from 'react'
+import * as TabsPrimitive from '@radix-ui/react-tabs'
+import type { ComponentProps } from 'react'
+import { cn } from '../../lib/utils'
 
-type TabsProps = {
-  children: ReactNode
-}
+export const Tabs = TabsPrimitive.Root
 
-export function Tabs({ children }: TabsProps) {
-  return <div className="flex flex-wrap gap-2">{children}</div>
-}
-
-export function TabItem({
-  label,
-  active = false,
-}: {
-  label: string
-  active?: boolean
-}) {
+export function TabsList({ className, ...props }: ComponentProps<typeof TabsPrimitive.List>) {
   return (
-    <button
-      type="button"
-      className={`min-h-[44px] rounded-lg border px-3 py-2 text-sm font-medium ${
-        active ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-700'
-      }`}
-    >
-      {label}
-    </button>
+    <TabsPrimitive.List
+      className={cn(
+        'inline-flex items-center gap-1 rounded-lg bg-surface-muted p-1 text-sm',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+export function TabsTrigger({ className, ...props }: ComponentProps<typeof TabsPrimitive.Trigger>) {
+  return (
+    <TabsPrimitive.Trigger
+      className={cn(
+        'inline-flex min-h-[36px] items-center justify-center rounded-md px-3.5 py-1.5 text-sm font-medium text-text-secondary transition-colors',
+        'hover:text-text-primary',
+        'data-[state=active]:bg-surface data-[state=active]:text-text-primary data-[state=active]:shadow-xs',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+export function TabsContent({ className, ...props }: ComponentProps<typeof TabsPrimitive.Content>) {
+  return (
+    <TabsPrimitive.Content
+      className={cn('mt-4 focus-visible:outline-none', className)}
+      {...props}
+    />
   )
 }

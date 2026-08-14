@@ -1,3 +1,5 @@
+import { AlertTriangle, Info, SearchX } from 'lucide-react'
+import { cn } from '../../lib/utils'
 import { Button } from '../ui/Button'
 
 type EmptyStateProps = {
@@ -8,23 +10,36 @@ type EmptyStateProps = {
   variant?: 'info' | 'warning' | 'danger'
 }
 
+const config = {
+  info: { classes: 'border-border bg-surface-muted text-text-secondary', icon: Info, iconClass: 'text-text-muted' },
+  warning: {
+    classes: 'border-warning-100 bg-warning-50 text-warning-700',
+    icon: SearchX,
+    iconClass: 'text-warning-600',
+  },
+  danger: {
+    classes: 'border-critical-100 bg-critical-50 text-critical-700',
+    icon: AlertTriangle,
+    iconClass: 'text-critical-600',
+  },
+}
+
 export function EmptyState({ title, description, actionLabel, onAction, variant = 'info' }: EmptyStateProps) {
-  const palettes = {
-    info: 'border-slate-200 bg-slate-50 text-slate-700',
-    warning: 'border-amber-200 bg-amber-50 text-amber-900',
-    danger: 'border-red-200 bg-red-50 text-red-900',
-  }
+  const { classes, icon: Icon, iconClass } = config[variant]
 
   return (
-    <div className={`rounded-xl border p-5 ${palettes[variant]}`}>
-      <p className="font-semibold">{title}</p>
-      <p className="mt-2 text-sm leading-6">{description}</p>
+    <div className={cn('flex flex-col items-center gap-3 rounded-xl border p-8 text-center', classes)}>
+      <div className={cn('flex h-11 w-11 items-center justify-center rounded-full bg-white/60', iconClass)}>
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </div>
+      <div>
+        <p className="font-semibold text-text-primary">{title}</p>
+        <p className="mt-1.5 max-w-sm text-sm leading-relaxed">{description}</p>
+      </div>
       {actionLabel && onAction ? (
-        <div className="mt-4">
-          <Button variant="secondary" onClick={onAction}>
-            {actionLabel}
-          </Button>
-        </div>
+        <Button variant="secondary" onClick={onAction} className="mt-1">
+          {actionLabel}
+        </Button>
       ) : null}
     </div>
   )

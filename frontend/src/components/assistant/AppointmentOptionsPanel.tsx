@@ -1,3 +1,4 @@
+import { CheckCircle2 } from 'lucide-react'
 import type { AppointmentPayload } from '../../types/appointments'
 import type { Doctor, Hospital, Slot } from '../../types/appointments'
 import { formatSlotLabel } from '../../lib/appointments-api'
@@ -28,10 +29,10 @@ export function AppointmentOptionsPanel({
   if (payload.type === 'collect_specialty') {
     return (
       <Card>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">What type of doctor do you need?</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">What type of doctor do you need?</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {payload.specialties.map((specialty) => (
-            <Button key={specialty} variant="secondary" onClick={() => onSelectSpecialty?.(specialty)}>
+            <Button key={specialty} variant="secondary" size="sm" onClick={() => onSelectSpecialty?.(specialty)}>
               {specialty}
             </Button>
           ))}
@@ -43,7 +44,7 @@ export function AppointmentOptionsPanel({
   if (payload.type === 'hospital_options') {
     return (
       <Card>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Choose a hospital</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">Choose a hospital</p>
         <div className="mt-3 space-y-2">
           {payload.hospitals.map((hospital: Hospital) => (
             <HospitalCard
@@ -64,7 +65,7 @@ export function AppointmentOptionsPanel({
   if (payload.type === 'doctor_options') {
     return (
       <Card>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Choose a doctor</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">Choose a doctor</p>
         <div className="mt-3 space-y-2">
           {payload.doctors.map((doctor: Doctor) => (
             <DoctorCard
@@ -85,7 +86,7 @@ export function AppointmentOptionsPanel({
   if (payload.type === 'slot_options') {
     return (
       <Card>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Choose a time</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">Choose a time</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {payload.slots.map((slot: Slot) => (
             <SlotCard key={slot.slot_id} time={formatSlotLabel(slot)} onSelect={() => onSelectSlot?.(slot.slot_id)} />
@@ -99,8 +100,8 @@ export function AppointmentOptionsPanel({
     const proposed = payload.proposed
     return (
       <Card>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Confirm your appointment</p>
-        <ul className="mt-3 space-y-1 text-sm text-slate-600">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">Confirm your appointment</p>
+        <ul className="mt-3 space-y-1 text-sm text-text-secondary">
           <li>Doctor: {proposed.doctor_name}</li>
           <li>Specialty: {proposed.specialty}</li>
           <li>Hospital: {proposed.hospital_name}</li>
@@ -118,8 +119,11 @@ export function AppointmentOptionsPanel({
     const appt = payload.appointment
     return (
       <Card>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-600">✓ Appointment confirmed</p>
-        <ul className="mt-3 space-y-1 text-sm text-slate-600">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-success-700">
+          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Appointment confirmed
+        </p>
+        <ul className="mt-3 space-y-1 text-sm text-text-secondary">
           <li>Doctor: {appt.doctor.name}</li>
           <li>Specialty: {appt.doctor.specialty}</li>
           <li>Hospital: {appt.hospital.name}</li>

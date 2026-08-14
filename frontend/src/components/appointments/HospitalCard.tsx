@@ -1,3 +1,5 @@
+import { Building2, MapPin } from 'lucide-react'
+import { cn } from '../../lib/utils'
 import { StatusBadge } from './StatusBadge'
 
 type HospitalCardProps = {
@@ -20,29 +22,40 @@ export function HospitalCard({
   onSelect,
 }: HospitalCardProps) {
   const interactive = Boolean(onSelect)
-  const state = selected
-    ? 'border-sky-300 bg-sky-50 ring-2 ring-sky-200'
-    : 'border-slate-200 bg-white hover:border-slate-300'
 
   return (
     <button
       type="button"
       onClick={onSelect}
       disabled={!interactive}
-      className={`w-full rounded-xl border p-4 text-left transition-colors ${state} ${interactive ? 'cursor-pointer' : 'cursor-default'}`}
+      className={cn(
+        'w-full rounded-xl border p-4 text-left transition-all',
+        selected
+          ? 'border-brand-300 bg-brand-50 ring-2 ring-brand-200'
+          : 'border-border bg-surface hover:border-border-strong hover:shadow-sm',
+        interactive ? 'cursor-pointer' : 'cursor-default',
+      )}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-base font-semibold text-slate-900">{name}</p>
-          <p className="mt-1 text-sm text-slate-600">{location}</p>
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-text-secondary">
+            <Building2 className="h-[18px] w-[18px]" aria-hidden="true" />
+          </div>
+          <div>
+            <p className="text-base font-semibold text-text-primary">{name}</p>
+            <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-text-secondary">
+              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+              {location}
+            </p>
+          </div>
         </div>
         {isDemoData ? <StatusBadge status="demo" /> : null}
       </div>
       {specialties.length > 0 ? (
-        <p className="mt-3 text-sm text-slate-500">Specialties: {specialties.join(', ')}</p>
+        <p className="mt-3 pl-[52px] text-xs text-text-muted">Specialties: {specialties.join(', ')}</p>
       ) : null}
       {languages.length > 0 ? (
-        <p className="mt-1 text-xs text-slate-400">Languages: {languages.join(', ')}</p>
+        <p className="mt-1 pl-[52px] text-xs text-text-muted">Languages: {languages.join(', ')}</p>
       ) : null}
     </button>
   )

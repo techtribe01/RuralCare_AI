@@ -1,18 +1,32 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Alert } from '../components/ui/Alert'
-import { Card } from '../components/ui/Card'
+import { Card, CardHeader, CardTitle } from '../components/ui/Card'
+import { Badge } from '../components/ui/Badge'
 import { PageContainer } from '../components/shared/PageContainer'
 import { PageHeader } from '../components/shared/PageHeader'
 import { AppointmentOptionsPanel } from '../components/assistant/AppointmentOptionsPanel'
 import { ConversationPanel } from '../components/assistant/ConversationPanel'
 import { MessageBubble } from '../components/assistant/MessageBubble'
 import { MessageComposer } from '../components/assistant/MessageComposer'
+import { SafetyBanner } from '../components/assistant/SafetyBanner'
+import { AssistantEmptyState } from '../components/assistant/EmptyState'
+import { VoiceControl } from '../components/assistant/VoiceControl'
 import { AgentTrace } from '../components/agent/AgentTrace'
+import { SourceCard } from '../components/agent/SourceCard'
 import { StatusBadge } from '../components/appointments/StatusBadge'
 import { useChatSession } from '../app/ChatSessionContext'
 
 export default function AssistantPage() {
   const { messages, latestEvents, latestResponse, latestAppointment, isThinking, error, sendMessage } = useChatSession()
+  const [voiceOpen, setVoiceOpen] = useState(false)
+
+  let lastAssistantIndex = -1
+  messages.forEach((message, index) => {
+    if (message.role === 'assistant') {
+      lastAssistantIndex = index
+    }
+  })
 
   return (
     <PageContainer>
@@ -23,16 +37,20 @@ export default function AssistantPage() {
         actions={
           <NavLink
             to="/help-safety"
-            className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 hover:bg-slate-50"
+            className="inline-flex min-h-[44px] items-center rounded-lg border border-border-strong bg-surface px-4 py-2.5 text-sm font-medium text-text-primary hover:bg-surface-muted"
           >
             View safety guidance
           </NavLink>
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.5fr_0.75fr]">
+      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <div className="space-y-5">
-          {error ? <Alert title="Assistant unavailable" variant="danger">{error}</Alert> : null}
+          {error ? (
+            <Alert title="Assistant unavailable" variant="danger">
+              {error}
+            </Alert>
+          ) : null}
 
           <ConversationPanel
             status={
@@ -44,16 +62,35 @@ export default function AssistantPage() {
                 'Ready for a new conversation'
               )
             }
-            emptyState={
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-600">
-                Your conversation will appear here after you send a message. Try &quot;I want a general physician&quot; to start booking.
-              </div>
-            }
+            emptyState={<AssistantEmptyState onSendStarter={sendMessage} onOpenVoice={() => setVoiceOpen(true)} />}
           >
-            {messages.map((message) => (
-              <MessageBubble key={message.id} role={message.role} text={message.text} meta={message.role === 'assistant' ? 'Agent response' : undefined} />
-            ))}
-            {isThinking ? <MessageBubble role="assistant" text="Agent is thinking..." meta="Language detection and intent routing are running now." /> : null}
+            {messages.map((message, index) => {
+              const isLatestAssistantTurn = index === lastAssistantIndex && Boolean(latestResponse)
+              const sources = isLatestAssistantTurn ? latestResponse?.sources ?? [] : []
+
+              return (
+                <div key={message.id} className="space-y-3">
+                  <MessageBubble role={message.role} text={message.text} timestamp={message.timestamp} />
+                  {isLatestAssistantTurn ? (
+                    <div className="space-y-3">
+                      <SafetyBanner
+                        riskLevel={latestResponse?.risk_level}
+                        humanEscalationRequired={latestResponse?.human_escalation_required}
+                        reasonCode={latestResponse?.safety_reason_code}
+                      />
+                      {sources.length > 0 ? (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {sources.map((source) => (
+                            <SourceCard key={source.document_id} source={source} />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
+            {isThinking ? <MessageBubble role="assistant" text="Agent is thinking..." /> : null}
           </ConversationPanel>
 
           {latestAppointment ? (
@@ -67,18 +104,42 @@ export default function AssistantPage() {
             />
           ) : null}
 
-          <MessageComposer onSubmit={sendMessage} loading={isThinking} />
+          {voiceOpen ? <VoiceControl onClose={() => setVoiceOpen(false)} /> : null}
+
+          <MessageComposer
+            onSubmit={sendMessage}
+            loading={isThinking}
+            voiceOpen={voiceOpen}
+            onToggleVoice={() => setVoiceOpen((open) => !open)}
+          />
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           <Card>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Session context</p>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li>• Language: {latestResponse?.language ?? 'en'}</li>
-              <li>• Intent: {latestResponse?.intent ?? 'general_information'}</li>
-              <li>• Channel: Chat</li>
-              <li>• Session: Active</li>
-              {latestResponse?.risk_level ? <li>• Risk: {latestResponse.risk_level}</li> : null}
+            <CardHeader>
+              <CardTitle>Session context</CardTitle>
+            </CardHeader>
+            <ul className="space-y-2 text-sm text-text-secondary">
+              <li>Language: {latestResponse?.language ?? 'en'}</li>
+              <li>Intent: {latestResponse?.intent ?? 'general_information'}</li>
+              <li>Channel: Chat</li>
+              <li>Session: Active</li>
+              {latestResponse?.risk_level ? (
+                <li className="flex items-center gap-2">
+                  Risk:
+                  <Badge
+                    variant={
+                      latestResponse.risk_level === 'emergency' || latestResponse.risk_level === 'high'
+                        ? 'danger'
+                        : latestResponse.risk_level === 'moderate'
+                          ? 'warning'
+                          : 'default'
+                    }
+                  >
+                    {latestResponse.risk_level}
+                  </Badge>
+                </li>
+              ) : null}
             </ul>
             <div className="mt-3">
               <StatusBadge status="demo" />

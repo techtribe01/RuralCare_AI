@@ -1,40 +1,52 @@
 import { NavLink } from 'react-router-dom'
-
-const navItems = [
-  { label: 'Home', to: '/' },
-  { label: 'Assistant', to: '/assistant' },
-  { label: 'Appointments', to: '/appointments' },
-  { label: 'Activity', to: '/activity' },
-  { label: 'Help & Safety', to: '/help-safety' },
-  { label: 'Agent Console', to: '/agent-console' },
-]
+import { cn } from '../../lib/utils'
+import { evaluatorNavItem, primaryNavItems } from './nav-items'
 
 export function Sidebar() {
   return (
-    <aside className="hidden w-72 shrink-0 rounded-2xl border border-slate-200 bg-white p-4 lg:block">
-      <div className="mb-6 px-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">RuralCare AI</p>
-        <h2 className="mt-2 text-xl font-semibold text-slate-900">Care navigator</h2>
-      </div>
+    <aside className="hidden w-64 shrink-0 lg:block">
+      <div className="sticky top-24 space-y-6">
+        <nav aria-label="Main navigation" className="space-y-1">
+          {primaryNavItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }) =>
+                cn(
+                  'flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-brand-soft text-brand-700'
+                    : 'text-text-secondary hover:bg-surface-muted hover:text-text-primary',
+                )
+              }
+            >
+              <item.icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
 
-      <nav aria-label="Main navigation" className="space-y-1">
-        {navItems.map((item) => (
+        <div className="border-t border-border pt-4">
+          <p className="px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+            For evaluators
+          </p>
           <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
+            to={evaluatorNavItem.to}
             className={({ isActive }) =>
-              `flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors ${
+              cn(
+                'flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-100'
-                  : 'text-slate-700 hover:bg-slate-100'
-              }`
+                  ? 'bg-surface-muted text-text-primary'
+                  : 'text-text-secondary hover:bg-surface-muted hover:text-text-primary',
+              )
             }
           >
-            {item.label}
+            <evaluatorNavItem.icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+            {evaluatorNavItem.label}
           </NavLink>
-        ))}
-      </nav>
+        </div>
+      </div>
     </aside>
   )
 }

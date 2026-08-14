@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import { CalendarDays, Loader2, MapPin, Stethoscope } from 'lucide-react'
 import { Alert } from '../components/ui/Alert'
 import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
+import { Card, CardDescription, CardHeader, CardTitle } from '../components/ui/Card'
+import { Input } from '../components/ui/Input'
+import { Skeleton } from '../components/ui/Skeleton'
 import { PageContainer } from '../components/shared/PageContainer'
 import { PageHeader } from '../components/shared/PageHeader'
 import { AppointmentCard } from '../components/appointments/AppointmentCard'
@@ -23,18 +27,75 @@ import {
   searchHospitals,
 } from '../lib/appointments-api'
 import { useChatSession } from '../app/ChatSessionContext'
+import { cn } from '../lib/utils'
 import type { ApiError, Appointment, AppointmentStep, Doctor, Hospital, Slot, Specialty } from '../types/appointments'
+
+const STEP_DESCRIPTIONS: Record<AppointmentStep, string> = {
+  need: 'Tell us what kind of care you need.',
+  doctor: 'Choose a hospital and doctor.',
+  time: 'Pick an available time.',
+  confirm: 'Review and confirm your appointment.',
+  success: 'Your appointment is confirmed.',
+}
+
+const SLOT_PERIOD_ORDER = ['Morning', 'Afternoon', 'Evening'] as const
+type SlotPeriod = (typeof SLOT_PERIOD_ORDER)[number]
+
+function slotPeriod(slot: Slot): SlotPeriod {
+  const hour = Number.parseInt(slot.start_time.slice(0, 2), 10)
+  if (hour < 12) return 'Morning'
+  if (hour < 17) return 'Afternoon'
+  return 'Evening'
+}
+
+function slotTimeRange(slot: Slot): string {
+  return `${slot.start_time.slice(0, 5)} – ${slot.end_time.slice(0, 5)}`
+}
+
+function groupSlots(slots: Slot[]): { date: string; periods: { period: SlotPeriod; slots: Slot[] }[] }[] {
+  const byDate = new Map<string, Map<SlotPeriod, Slot[]>>()
+  for (const slot of slots) {
+    if (!byDate.has(slot.date)) byDate.set(slot.date, new Map())
+    const periods = byDate.get(slot.date)!
+    const period = slotPeriod(slot)
+    if (!periods.has(period)) periods.set(period, [])
+    periods.get(period)!.push(slot)
+  }
+  return Array.from(byDate.entries()).map(([date, periods]) => ({
+    date,
+    periods: SLOT_PERIOD_ORDER.filter((period) => periods.has(period)).map((period) => ({
+      period,
+      slots: periods.get(period)!,
+    })),
+  }))
+}
+
+function formatDateHeading(date: string): string {
+  const parsed = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return date
+  return parsed.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+}
+
+const stepMotionProps = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.18, ease: [0.2, 0, 0, 1] as const },
+}
 
 export default function AppointmentsPage() {
   const { sessionId: userId } = useChatSession()
 
   const [step, setStep] = useState<AppointmentStep>('need')
   const [specialties, setSpecialties] = useState<Specialty[]>([])
+  const [specialtiesLoading, setSpecialtiesLoading] = useState(true)
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null)
   const [locationFilter, setLocationFilter] = useState('')
   const [hospitals, setHospitals] = useState<Hospital[]>([])
+  const [hospitalsLoading, setHospitalsLoading] = useState(false)
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null)
   const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [doctorsLoading, setDoctorsLoading] = useState(false)
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null)
   const [slots, setSlots] = useState<Slot[]>([])
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
@@ -48,9 +109,11 @@ export default function AppointmentsPage() {
   const [showRescheduleMode, setShowRescheduleMode] = useState(false)
 
   useEffect(() => {
+    setSpecialtiesLoading(true)
     fetchSpecialties()
       .then(setSpecialties)
       .catch(() => setError({ code: 'service_unavailable', message: 'We could not load specialties. Please try again.' }))
+      .finally(() => setSpecialtiesLoading(false))
   }, [])
 
   const resetFlow = useCallback(() => {
@@ -58,8 +121,10 @@ export default function AppointmentsPage() {
     setSelectedSpecialty(null)
     setLocationFilter('')
     setHospitals([])
+    setHospitalsLoading(false)
     setSelectedHospital(null)
     setDoctors([])
+    setDoctorsLoading(false)
     setSelectedDoctor(null)
     setSlots([])
     setSelectedSlot(null)
@@ -70,23 +135,29 @@ export default function AppointmentsPage() {
 
   const handleSpecialtySelect = async (specialtyName: string) => {
     setSelectedSpecialty(specialtyName)
-    setLoading(true)
     setError(null)
+    setHospitals([])
+    setSelectedHospital(null)
+    setDoctors([])
+    setSelectedDoctor(null)
+    setHospitalsLoading(true)
+    setStep('doctor')
     try {
       const hospitalResults = await searchHospitals({ specialty: specialtyName, location: locationFilter || undefined })
       setHospitals(hospitalResults)
-      setStep('doctor')
     } catch (err) {
       setError(err as ApiError)
     } finally {
-      setLoading(false)
+      setHospitalsLoading(false)
     }
   }
 
   const handleHospitalSelect = async (hospital: Hospital) => {
     setSelectedHospital(hospital)
-    setLoading(true)
+    setDoctors([])
+    setSelectedDoctor(null)
     setError(null)
+    setDoctorsLoading(true)
     try {
       const doctorResults = await searchDoctors({
         specialty: selectedSpecialty ?? undefined,
@@ -99,7 +170,7 @@ export default function AppointmentsPage() {
     } catch (err) {
       setError(err as ApiError)
     } finally {
-      setLoading(false)
+      setDoctorsLoading(false)
     }
   }
 
@@ -206,8 +277,51 @@ export default function AppointmentsPage() {
     }
   }
 
+  const errorPresentation = (() => {
+    if (!error) return null
+    switch (error.code) {
+      case 'no_doctors_found':
+        return {
+          title: 'No doctors found',
+          actionLabel: 'Choose a different hospital',
+          onAction: () => {
+            setError(null)
+            setSelectedHospital(null)
+            setDoctors([])
+          },
+          variant: 'warning' as const,
+        }
+      case 'no_slots_available':
+      case 'slot_unavailable':
+        return {
+          title: 'No slots available',
+          actionLabel: 'Try another doctor',
+          onAction: () => {
+            setError(null)
+            setSelectedSlot(null)
+            setStep('doctor')
+          },
+          variant: 'warning' as const,
+        }
+      case 'service_unavailable':
+        return {
+          title: 'Service unavailable',
+          actionLabel: 'Start over',
+          onAction: () => resetFlow(),
+          variant: 'danger' as const,
+        }
+      default:
+        return {
+          title: 'Something went wrong',
+          actionLabel: 'Start over',
+          onAction: () => resetFlow(),
+          variant: 'warning' as const,
+        }
+    }
+  })()
+
   return (
-    <PageContainer>
+    <PageContainer className="max-w-6xl">
       <PageHeader
         eyebrow="Appointments"
         title="Book a doctor visit"
@@ -215,219 +329,305 @@ export default function AppointmentsPage() {
         actions={<StatusBadge status="demo" />}
       />
 
-      <Card className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Your progress</p>
-        <div className="mt-3">
+      <Card>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">Your progress</p>
+        <div className="mt-4">
           <StepIndicator currentStep={step} />
         </div>
-        <p className="mt-3 text-sm text-slate-600">
-          {step === 'need' && 'Tell us what kind of care you need.'}
-          {step === 'doctor' && 'Choose a hospital and doctor.'}
-          {step === 'time' && 'Pick an available time.'}
-          {step === 'confirm' && 'Review and confirm your appointment.'}
-          {step === 'success' && 'Your appointment is confirmed.'}
-        </p>
+        <p className="mt-4 text-sm text-text-secondary">{STEP_DESCRIPTIONS[step]}</p>
       </Card>
 
-      {error ? (
-        <div className="mb-6">
-          <EmptyState
-            title={
-              error.code === 'no_doctors_found'
-                ? 'No doctors found'
-                : error.code === 'no_slots_available' || error.code === 'slot_unavailable'
-                  ? 'No slots available'
-                  : error.code === 'service_unavailable'
-                    ? 'Service unavailable'
-                    : 'Something went wrong'
-            }
-            description={error.message}
-            actionLabel={error.code === 'slot_unavailable' ? 'Choose another time' : 'Start over'}
-            onAction={() => {
-              if (error.code === 'slot_unavailable') {
-                setError(null)
-                setStep('time')
-              } else {
-                resetFlow()
-              }
-            }}
-            variant={error.code === 'service_unavailable' ? 'danger' : 'warning'}
-          />
-        </div>
+      {error && errorPresentation ? (
+        <EmptyState
+          title={errorPresentation.title}
+          description={error.message}
+          actionLabel={errorPresentation.actionLabel}
+          onAction={errorPresentation.onAction}
+          variant={errorPresentation.variant}
+        />
       ) : null}
 
-      {step === 'need' ? (
-        <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">What do you need?</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <input
-              type="text"
-              placeholder="Filter by location (optional)"
-              value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              className="mb-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            />
-            {specialties.map((specialty) => (
-              <Button key={specialty.specialty_id} variant="secondary" loading={loading && selectedSpecialty === specialty.name} onClick={() => handleSpecialtySelect(specialty.name)}>
-                {specialty.name}
-              </Button>
-            ))}
-          </div>
-        </Card>
-      ) : null}
-
-      {step === 'doctor' ? (
-        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-          {hospitals.length > 0 ? (
+      <AnimatePresence mode="wait">
+        <motion.div key={step} {...stepMotionProps}>
+          {step === 'need' ? (
             <Card>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Hospitals</p>
-              <div className="mt-4 space-y-3">
-                {hospitals.map((hospital) => (
-                  <HospitalCard
-                    key={hospital.hospital_id}
-                    name={hospital.name}
-                    location={hospital.location}
-                    specialties={hospital.specialties}
-                    languages={hospital.languages}
-                    selected={selectedHospital?.hospital_id === hospital.hospital_id}
-                    isDemoData={hospital.is_demo_data}
-                    onSelect={() => handleHospitalSelect(hospital)}
-                  />
-                ))}
-              </div>
-            </Card>
-          ) : (
-            <EmptyState
-              title="No hospitals found"
-              description="Try a different specialty or location."
-              actionLabel="Go back"
-              onAction={() => setStep('need')}
-            />
-          )}
+              <CardHeader>
+                <div>
+                  <CardTitle>What kind of care do you need?</CardTitle>
+                  <CardDescription>Pick a specialty to see hospitals and doctors near you.</CardDescription>
+                </div>
+              </CardHeader>
 
-          {doctors.length > 0 ? (
-            <Card>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Doctors</p>
-              <div className="mt-4 space-y-3">
-                {doctors.map((doctor) => (
-                  <DoctorCard
-                    key={doctor.doctor_id}
-                    name={doctor.name}
-                    specialty={doctor.specialty}
-                    location={doctor.hospital_name}
-                    availability={doctor.next_available_slot ? formatSlotLabel(doctor.next_available_slot) : 'Check availability'}
-                    languages={doctor.languages}
-                    selected={selectedDoctor?.doctor_id === doctor.doctor_id}
-                    onSelect={() => handleDoctorSelect(doctor)}
-                  />
-                ))}
-              </div>
-            </Card>
-          ) : selectedHospital ? (
-            <Card>
-              <p className="text-sm text-slate-600">Select a hospital to see available doctors.</p>
-            </Card>
-          ) : null}
-        </div>
-      ) : null}
-
-      {step === 'time' ? (
-        <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Available times</p>
-          {selectedDoctor ? (
-            <p className="mt-2 text-sm text-slate-600">
-              with {selectedDoctor.name} at {selectedDoctor.hospital_name}
-            </p>
-          ) : null}
-          {slots.length > 0 ? (
-            <div className="mt-4 flex flex-wrap gap-3">
-              {slots.map((slot) => (
-                <SlotCard
-                  key={slot.slot_id}
-                  time={formatSlotLabel(slot)}
-                  selected={selectedSlot?.slot_id === slot.slot_id}
-                  onSelect={() => handleSlotSelect(slot)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="mt-4">
-              <EmptyState title="No slots available" description="This doctor has no open times. Try another doctor." actionLabel="Back to doctors" onAction={() => setStep('doctor')} />
-            </div>
-          )}
-          {showRescheduleMode && selectedSlot ? (
-            <div className="mt-4">
-              <Button onClick={handleReschedule} loading={loading}>
-                Confirm new time
-              </Button>
-            </div>
-          ) : null}
-        </Card>
-      ) : null}
-
-      {step === 'confirm' && selectedDoctor && selectedSlot ? (
-        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <Card>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Review your appointment</p>
-            <div className="mt-4">
-              <AppointmentCard
-                title="Appointment summary"
-                doctorName={selectedDoctor.name}
-                specialty={selectedDoctor.specialty}
-                hospitalName={selectedDoctor.hospital_name}
-                date={selectedSlot.date}
-                time={`${selectedSlot.start_time.slice(0, 5)} – ${selectedSlot.end_time.slice(0, 5)}`}
-                location={selectedDoctor.location}
+              <Input
+                icon={<MapPin className="h-4 w-4" aria-hidden="true" />}
+                placeholder="Filter by location (optional)"
+                value={locationFilter}
+                onChange={setLocationFilter}
+                ariaLabel="Filter by location"
               />
-            </div>
-          </Card>
-          <Card>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">What happens next?</p>
-            <p className="mt-3 text-sm text-slate-600">Confirming will book this slot. You will receive a confirmation message.</p>
-            <div className="mt-4 flex gap-3">
-              <Button onClick={() => setShowConfirmDialog(true)}>Confirm appointment</Button>
-              <Button variant="secondary" onClick={() => setStep('time')}>
-                Change time
-              </Button>
-            </div>
-          </Card>
-        </div>
-      ) : null}
 
-      {step === 'success' && bookedAppointment ? (
-        <div className="space-y-5">
-          <Alert title="✓ Appointment Confirmed" variant="success">
-            Your appointment has been booked successfully.
-          </Alert>
-          <AppointmentCard
-            title="Confirmed appointment"
-            doctorName={bookedAppointment.doctor.name}
-            specialty={bookedAppointment.doctor.specialty}
-            hospitalName={bookedAppointment.hospital.name}
-            date={bookedAppointment.slot.date}
-            time={`${bookedAppointment.slot.start_time.slice(0, 5)} – ${bookedAppointment.slot.end_time.slice(0, 5)}`}
-            location={bookedAppointment.hospital.location}
-            bookingId={bookedAppointment.booking_id}
-            status="confirmed"
-          />
-          <Card>
-            <p className="text-sm text-slate-600">
-              Notification: <strong>{notificationStatus}</strong>
-            </p>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Button variant="secondary" onClick={startReschedule}>
-                Reschedule
-              </Button>
-              <Button variant="destructive" onClick={() => setShowCancelDialog(true)}>
-                Cancel
-              </Button>
-              <Button variant="ghost" onClick={resetFlow}>
-                Book another
-              </Button>
+              <div className="mt-5">
+                {specialtiesLoading ? (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                      <Skeleton key={index} className="h-24 rounded-xl" />
+                    ))}
+                  </div>
+                ) : specialties.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {specialties.map((specialty) => {
+                      const isSelected = selectedSpecialty === specialty.name
+                      const isBusy = hospitalsLoading && isSelected
+                      return (
+                        <button
+                          key={specialty.specialty_id}
+                          type="button"
+                          onClick={() => handleSpecialtySelect(specialty.name)}
+                          disabled={hospitalsLoading}
+                          className={cn(
+                            'flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-60',
+                            isSelected
+                              ? 'border-brand-300 bg-brand-50 ring-2 ring-brand-200'
+                              : 'border-border bg-surface hover:border-border-strong hover:shadow-sm',
+                          )}
+                        >
+                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-muted text-text-secondary">
+                            {isBusy ? (
+                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            ) : (
+                              <Stethoscope className="h-4 w-4" aria-hidden="true" />
+                            )}
+                          </span>
+                          <span className="text-sm font-semibold text-text-primary">{specialty.name}</span>
+                          {specialty.description ? (
+                            <span className="line-clamp-2 text-xs text-text-muted">{specialty.description}</span>
+                          ) : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="No specialties available"
+                    description="We could not find any specialties to show right now."
+                    variant="info"
+                  />
+                )}
+              </div>
+            </Card>
+          ) : null}
+
+          {step === 'doctor' ? (
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Hospitals</CardTitle>
+                </CardHeader>
+                {hospitalsLoading ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <Skeleton key={index} className="h-24 rounded-xl" />
+                    ))}
+                  </div>
+                ) : hospitals.length > 0 ? (
+                  <div className="space-y-3">
+                    {hospitals.map((hospital) => (
+                      <HospitalCard
+                        key={hospital.hospital_id}
+                        name={hospital.name}
+                        location={hospital.location}
+                        specialties={hospital.specialties}
+                        languages={hospital.languages}
+                        selected={selectedHospital?.hospital_id === hospital.hospital_id}
+                        isDemoData={hospital.is_demo_data}
+                        onSelect={() => handleHospitalSelect(hospital)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="No hospitals found"
+                    description="Try a different specialty or location."
+                    actionLabel="Go back"
+                    onAction={() => setStep('need')}
+                    variant="warning"
+                  />
+                )}
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Doctors</CardTitle>
+                </CardHeader>
+                {doctorsLoading ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <Skeleton key={index} className="h-24 rounded-xl" />
+                    ))}
+                  </div>
+                ) : doctors.length > 0 ? (
+                  <div className="space-y-3">
+                    {doctors.map((doctor) => (
+                      <DoctorCard
+                        key={doctor.doctor_id}
+                        name={doctor.name}
+                        specialty={doctor.specialty}
+                        location={doctor.hospital_name}
+                        availability={doctor.next_available_slot ? formatSlotLabel(doctor.next_available_slot) : 'Check availability'}
+                        languages={doctor.languages}
+                        selected={selectedDoctor?.doctor_id === doctor.doctor_id}
+                        onSelect={() => handleDoctorSelect(doctor)}
+                      />
+                    ))}
+                  </div>
+                ) : selectedHospital ? (
+                  <p className="text-sm text-text-secondary">No doctors to show for this hospital yet.</p>
+                ) : (
+                  <p className="text-sm text-text-secondary">Select a hospital to see available doctors.</p>
+                )}
+              </Card>
             </div>
-          </Card>
-        </div>
-      ) : null}
+          ) : null}
+
+          {step === 'time' ? (
+            <Card>
+              <CardHeader>
+                <div>
+                  <CardTitle>Available times</CardTitle>
+                  {selectedDoctor ? (
+                    <CardDescription>
+                      with {selectedDoctor.name} at {selectedDoctor.hospital_name}
+                    </CardDescription>
+                  ) : null}
+                </div>
+              </CardHeader>
+
+              {slots.length > 0 ? (
+                <div className="space-y-6">
+                  {groupSlots(slots).map((dateGroup) => (
+                    <div key={dateGroup.date}>
+                      <p className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                        <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+                        {formatDateHeading(dateGroup.date)}
+                      </p>
+                      <div className="space-y-4">
+                        {dateGroup.periods.map(({ period, slots: periodSlots }) => (
+                          <div key={period}>
+                            <p className="mb-2 text-xs font-medium text-text-secondary">{period}</p>
+                            <div className="flex flex-wrap gap-2.5">
+                              {periodSlots.map((slot) => (
+                                <SlotCard
+                                  key={slot.slot_id}
+                                  time={slotTimeRange(slot)}
+                                  selected={selectedSlot?.slot_id === slot.slot_id}
+                                  onSelect={() => handleSlotSelect(slot)}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title="No slots available"
+                  description="This doctor has no open times. Try another doctor."
+                  actionLabel="Back to doctors"
+                  onAction={() => setStep('doctor')}
+                  variant="warning"
+                />
+              )}
+
+              {showRescheduleMode && selectedSlot ? (
+                <div className="mt-5">
+                  <Button onClick={handleReschedule} loading={loading}>
+                    Confirm new time
+                  </Button>
+                </div>
+              ) : null}
+            </Card>
+          ) : null}
+
+          {step === 'confirm' && selectedDoctor && selectedSlot ? (
+            <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Review your appointment</CardTitle>
+                </CardHeader>
+                <AppointmentCard
+                  title="Appointment summary"
+                  doctorName={selectedDoctor.name}
+                  specialty={selectedDoctor.specialty}
+                  hospitalName={selectedDoctor.hospital_name}
+                  date={selectedSlot.date}
+                  time={slotTimeRange(selectedSlot)}
+                  location={selectedDoctor.location}
+                />
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>What happens next?</CardTitle>
+                </CardHeader>
+                <p className="text-sm text-text-secondary">
+                  Confirming will book this slot. You will receive a confirmation message.
+                </p>
+                <div className="mt-5 flex flex-col gap-2.5">
+                  <Button size="lg" onClick={() => setShowConfirmDialog(true)}>
+                    Confirm appointment
+                  </Button>
+                  <Button variant="secondary" onClick={() => setStep('time')}>
+                    Change time
+                  </Button>
+                </div>
+              </Card>
+            </div>
+          ) : null}
+
+          {step === 'success' && bookedAppointment ? (
+            <div className="space-y-5">
+              <Alert title="Appointment confirmed" variant="success">
+                Your appointment has been booked successfully.
+              </Alert>
+              <AppointmentCard
+                title="Confirmed appointment"
+                doctorName={bookedAppointment.doctor.name}
+                specialty={bookedAppointment.doctor.specialty}
+                hospitalName={bookedAppointment.hospital.name}
+                date={bookedAppointment.slot.date}
+                time={slotTimeRange(bookedAppointment.slot)}
+                location={bookedAppointment.hospital.location}
+                bookingId={bookedAppointment.booking_id}
+                status="confirmed"
+              />
+              <Card>
+                <p className="text-sm text-text-secondary">
+                  Notification: <strong className="text-text-primary">{notificationStatus}</strong>
+                </p>
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap gap-2.5">
+                    <Button size="lg" onClick={resetFlow}>
+                      Book another appointment
+                    </Button>
+                    <Button variant="secondary" onClick={startReschedule}>
+                      Reschedule
+                    </Button>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="self-start text-critical-700 hover:bg-critical-50 hover:text-critical-700 sm:self-auto"
+                    onClick={() => setShowCancelDialog(true)}
+                  >
+                    Cancel appointment
+                  </Button>
+                </div>
+              </Card>
+            </div>
+          ) : null}
+        </motion.div>
+      </AnimatePresence>
 
       <ConfirmationDialog
         open={showConfirmDialog}

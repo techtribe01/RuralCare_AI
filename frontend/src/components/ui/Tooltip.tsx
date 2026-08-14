@@ -1,4 +1,7 @@
+import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import type { ReactNode } from 'react'
+
+export const TooltipProvider = TooltipPrimitive.Provider
 
 type TooltipProps = {
   label: string
@@ -7,11 +10,17 @@ type TooltipProps = {
 
 export function Tooltip({ label, children }: TooltipProps) {
   return (
-    <div className="group relative inline-flex">
-      {children}
-      <span className="pointer-events-none absolute -top-10 left-1/2 hidden -translate-x-1/2 rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white group-hover:block">
-        {label}
-      </span>
-    </div>
+    <TooltipPrimitive.Root delayDuration={300}>
+      <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
+      <TooltipPrimitive.Portal>
+        <TooltipPrimitive.Content
+          sideOffset={6}
+          className="z-50 rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-md"
+        >
+          {label}
+          <TooltipPrimitive.Arrow className="fill-slate-900" />
+        </TooltipPrimitive.Content>
+      </TooltipPrimitive.Portal>
+    </TooltipPrimitive.Root>
   )
 }

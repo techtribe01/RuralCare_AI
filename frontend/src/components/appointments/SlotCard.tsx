@@ -1,3 +1,5 @@
+import { cn } from '../../lib/utils'
+
 type SlotCardProps = {
   time: string
   selected?: boolean
@@ -6,14 +8,21 @@ type SlotCardProps = {
 }
 
 export function SlotCard({ time, selected = false, disabled = false, onSelect }: SlotCardProps) {
-  const state = disabled
-    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-    : selected
-      ? 'bg-sky-50 text-sky-700 border-sky-200 ring-2 ring-sky-200'
-      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer'
-
   return (
-    <button type="button" disabled={disabled} onClick={onSelect} className={`min-h-[44px] rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${state}`}>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={cn(
+        'min-h-[44px] rounded-lg border px-3.5 py-2 text-sm font-medium transition-all',
+        disabled
+          ? 'cursor-not-allowed border-border bg-surface-muted text-text-muted line-through'
+          : selected
+            ? 'border-brand-600 bg-brand-600 text-white shadow-sm'
+            : 'cursor-pointer border-border-strong bg-surface text-text-primary hover:border-brand-300 hover:bg-brand-50',
+      )}
+    >
       {time}
     </button>
   )

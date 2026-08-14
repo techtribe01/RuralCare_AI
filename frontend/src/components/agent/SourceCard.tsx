@@ -1,19 +1,40 @@
+import { BookOpenCheck, ExternalLink } from 'lucide-react'
+import type { SourceReference } from '../../types/chat'
+
 type SourceCardProps = {
-  name: string
-  title: string
-  topic: string
-  relevance: string
+  source: SourceReference
 }
 
-export function SourceCard({ name, title, topic, relevance }: SourceCardProps) {
+export function SourceCard({ source }: SourceCardProps) {
+  const relevancePercent = Math.round(Math.min(Math.max(source.relevance, 0), 1) * 100)
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{name}</p>
-      <p className="mt-2 text-base font-semibold text-slate-900">{title}</p>
-      <p className="mt-2 text-sm text-slate-600">{topic}</p>
-      <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-        <span>Relevance</span>
-        <span className="font-medium text-slate-700">{relevance}</span>
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand-700">
+          <BookOpenCheck className="h-[18px] w-[18px]" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">{source.source}</p>
+          <p className="mt-0.5 truncate text-sm font-semibold text-text-primary">{source.title}</p>
+          <p className="mt-0.5 text-xs text-text-secondary">
+            {source.topic}
+            {source.section ? ` · ${source.section}` : ''} · v{source.version}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-muted">Relevance</span>
+          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-surface-muted" role="presentation">
+            <div className="h-full rounded-full bg-brand-600" style={{ width: `${relevancePercent}%` }} />
+          </div>
+          <span className="text-xs font-medium text-text-secondary">{relevancePercent}%</span>
+        </div>
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-700">
+          View source
+          <ExternalLink className="h-3 w-3" aria-hidden="true" />
+        </span>
       </div>
     </div>
   )

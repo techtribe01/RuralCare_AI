@@ -1,38 +1,55 @@
+import { forwardRef } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { Loader2 } from 'lucide-react'
+import { cva, type VariantProps } from 'class-variance-authority'
+import { cn } from '../../lib/utils'
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive'
+const buttonVariants = cva(
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors duration-150 ease-[cubic-bezier(0.2,0,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-50',
+  {
+    variants: {
+      variant: {
+        primary: 'bg-brand-600 text-white shadow-xs hover:bg-brand-700 active:bg-brand-800',
+        secondary:
+          'border border-border-strong bg-surface text-text-primary shadow-xs hover:bg-surface-muted',
+        ghost: 'text-text-secondary hover:bg-surface-muted hover:text-text-primary',
+        destructive: 'border border-critical-100 bg-critical-50 text-critical-700 hover:bg-critical-100',
+        link: 'text-brand-700 underline-offset-4 hover:underline',
+      },
+      size: {
+        sm: 'h-9 px-3 text-sm',
+        md: 'h-11 px-4 text-sm',
+        lg: 'h-12 px-6 text-base',
+        icon: 'h-11 w-11 shrink-0',
+      },
+    },
+    defaultVariants: {
+      variant: 'primary',
+      size: 'md',
+    },
+  },
+)
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: Variant
-  loading?: boolean
-  children: ReactNode
-}
-
-export function Button({
-  variant = 'primary',
-  loading = false,
-  disabled,
-  className = '',
-  children,
-  ...props
-}: ButtonProps) {
-  const base =
-    'inline-flex items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px]'
-
-  const variants: Record<Variant, string> = {
-    primary: 'border-sky-600 bg-sky-600 text-white hover:bg-sky-700',
-    secondary: 'border-slate-200 bg-white text-slate-900 hover:bg-slate-50',
-    ghost: 'border-transparent bg-transparent text-slate-700 hover:bg-slate-100',
-    destructive: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100',
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
+  VariantProps<typeof buttonVariants> & {
+    loading?: boolean
+    children: ReactNode
   }
 
-  return (
-    <button
-      className={`${base} ${variants[variant]} ${className}`}
-      disabled={disabled || loading}
-      {...props}
-    >
-      {loading ? 'Loading...' : children}
-    </button>
-  )
-}
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant, size, loading = false, disabled, className, children, ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        className={cn(buttonVariants({ variant, size }), className)}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
+        {...props}
+      >
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+        {children}
+      </button>
+    )
+  },
+)
+Button.displayName = 'Button'

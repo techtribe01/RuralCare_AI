@@ -1,18 +1,20 @@
 import { Outlet } from 'react-router-dom'
 import { TopBar } from './TopBar'
 import { Sidebar } from './Sidebar'
+import { BottomNav } from './BottomNav'
 
 export default function AppShell() {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-canvas text-text-primary">
       <div className="flex min-h-screen flex-col">
         <TopBar />
-        <div className="mx-auto flex w-full max-w-[1800px] flex-1 gap-6 p-4 lg:p-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-1 gap-8 px-4 pb-24 pt-6 lg:px-6 lg:pb-8">
           <Sidebar />
-          <main className="min-w-0 flex-1">
+          <main id="main-content" className="min-w-0 flex-1">
             <Outlet />
           </main>
         </div>
+        <BottomNav />
       </div>
     </div>
   )
