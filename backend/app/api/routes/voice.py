@@ -1,53 +1,57 @@
 from __future__ import annotations
 
 import logging
+from xml.etree import ElementTree as ET
 
-from fastapi import APIRouter, Depends, Form, Response
-from twilio.twiml.voice_response import Gather, VoiceResponse
+from fastapi import APIRouter, Depends, Form, Query, Response
+from fastapi.responses import JSONResponse
 
-from app.models.schemas import ChatRequest, LanguageCode
+from app.models.schemas import ChatRequest
+from app.models.schemas import LanguageCode
 from app.services.agent_service import AgentService, AgentServiceError, get_agent_service
 
 router = APIRouter(prefix="/voice", tags=["voice"])
 logger = logging.getLogger(__name__)
 
-# Simple in-memory voice state tracker for observability / status endpoint.
-# Maps session_id -> current state (IDLE, LISTENING, PROCESSING, SPEAKING, ERROR).
 _VOICE_STATES: dict[str, str] = {}
-
-# Maps session_id -> chosen language ("en"/"te") for the life of the call. Twilio's
-# speech recognizer needs one fixed language per <Gather>, so -- unlike chat/SMS --
-# voice can't silently auto-detect language turn by turn; the caller picks it once
-# via a short DTMF/speech prompt and every subsequent turn is pinned to that choice.
 _VOICE_LANGUAGES: dict[str, str] = {}
 
-# Twilio's <Say> needs an explicit voice per language: Polly has no Telugu voice, so
-# English uses Amazon Polly (Indian-English) and Telugu uses Google's Cloud TTS voice,
-# which Twilio also proxies. Gather's `language` selects the speech-recognition locale.
+# Exotel's Gather applet is DTMF-only (no speech recognition) and calls back via GET,
+# expecting JSON rather than TwiML. This tracks where each call is in a fixed menu flow,
+# separate from the Twilio/speech-based state above.
+_EXOTEL_STAGES: dict[str, str] = {}
+
+_EXOTEL_MENU_TEXT = {
+    "en": "Press 1 to book an appointment. Press 2 to check or cancel an appointment.",
+    "te": "అపాయింట్‌మెంట్ బుక్ చేయడానికి 1 నొక్కండి. అపాయింట్‌మెంట్ చెక్ చేయడానికి లేదా రద్దు చేయడానికి 2 నొక్కండి.",
+}
+_EXOTEL_MENU_ACTIONS = {
+    "1": "I want to book an appointment",
+    "2": "I want to check or cancel my appointment",
+}
+_EXOTEL_GOODBYE_TEXT = {
+    "en": "Thank you for calling Rural Care AI. Goodbye.",
+    "te": "రూరల్ కేర్ AI కి కాల్ చేసినందుకు ధన్యవాదాలు. వీడ్కోలు.",
+}
+
 _VOICE_COPY = {
     "en": {
-        "gather_language": "en-IN",
+        "greeting": "Welcome to Rural Care AI. How can I help with your health or appointment today?",
+        "no_input": "I did not hear any speech. Please tell me how I can help.",
+        "next_prompt": "Is there anything else I can help you with?",
+        "confirm_hint": " Say yes to confirm this appointment.",
+        "unavailable": "Voice assistant is temporarily unavailable. Please try again shortly.",
         "voice": "Polly.Aditi",
-        "greeting": (
-            "Welcome to Rural Care AI. How can I help you today? "
-            "You can say things like, I need a general physician."
-        ),
-        "next_prompt": "What would you like to do next?",
-        "no_input": "I did not hear anything. Voice is temporarily unavailable. Continue in chat.",
-        "unavailable": "Voice is temporarily unavailable. Continue in chat.",
-        "confirm_hint": " Please say yes to confirm.",
+        "gather_language": "en-IN",
     },
     "te": {
-        "gather_language": "te-IN",
+        "greeting": "రూరల్ కేర్ AI కి స్వాగతం. ఈరోజు మీ ఆరోగ్య సహాయం లేదా అపాయింట్‌మెంట్ కోసం నేను ఎలా సహాయపడగలను?",
+        "no_input": "నాకు ఏమీ వినిపించలేదు. దయచేసి మళ్లీ చెప్పండి.",
+        "next_prompt": "నేను మీకు ఇంకా ఏమైనా సహాయం చేయవచ్చా?",
+        "confirm_hint": " అపాయింట్‌మెంట్ ఖరారు చేయడానికి అవును అని చెప్పండి.",
+        "unavailable": "వాయిస్ అసిస్టెంట్ తాత్కాలికంగా లభించడం లేదు. దయచేసి కాసేపటి తర్వాత మళ్లీ ప్రయత్నించండి.",
         "voice": "Google.te-IN-Standard-A",
-        "greeting": (
-            "రూరల్ కేర్ AI కి స్వాగతం. మీకు ఈరోజు ఎలా సహాయం చేయగలను? "
-            "ఉదాహరణకు, 'నాకు జనరల్ ఫిజిషియన్ కావాలి' అని చెప్పవచ్చు."
-        ),
-        "next_prompt": "మీరు తర్వాత ఏమి చేయాలనుకుంటున్నారు?",
-        "no_input": "నాకు ఏమీ వినిపించలేదు. వాయిస్ తాత్కాలికంగా అందుబాటులో లేదు. చాట్‌లో కొనసాగించండి.",
-        "unavailable": "వాయిస్ తాత్కాలికంగా అందుబాటులో లేదు. చాట్‌లో కొనసాగించండి.",
-        "confirm_hint": " నిర్ధారించడానికి దయచేసి 'అవును' అని చెప్పండి.",
+        "gather_language": "te-IN",
     },
 }
 
@@ -90,37 +94,29 @@ def get_voice_state(session_id: str) -> dict:
 
 
 def _language_prompt_response() -> Response:
-    twiml = VoiceResponse()
-    gather = Gather(
-        input="dtmf speech",
-        action="/voice/webhook",
-        method="POST",
-        num_digits=1,
-        speech_timeout="auto",
-        hints="English,Telugu",
-    )
-    gather.say("Welcome to Rural Care AI. For English, press 1, or say English.", voice="Polly.Aditi")
-    gather.say("తెలుగు కోసం, 2 నొక్కండి, లేదా తెలుగు అని చెప్పండి.", voice="Google.te-IN-Standard-A")
-    twiml.append(gather)
-    twiml.say("I did not hear a selection. Continuing in English.", voice="Polly.Aditi")
-    return Response(content=str(twiml), media_type="application/xml")
+    resp = ET.Element("Response")
+    gather = ET.SubElement(resp, "Gather", input="dtmf speech", action="/voice/webhook", method="POST", num_digits="1", speech_timeout="auto")
+    say1 = ET.SubElement(gather, "Say", voice="Polly.Aditi")
+    say1.text = "Welcome to Rural Care AI. For English, press 1, or say English."
+    say2 = ET.SubElement(gather, "Say", voice="Google.te-IN-Standard-A")
+    say2.text = "తెలుగు కొరకు 2 నొక్కండి లేదా తెలుగు అని చెప్పండి."
+    fallback = ET.SubElement(resp, "Say", voice="Polly.Aditi")
+    fallback.text = "I did not hear a selection. Continuing in English."
+    xml_str = ET.tostring(resp, encoding="unicode")
+    return Response(content=xml_str, media_type="application/xml")
 
 
 def _greeting_response(session_id: str, language: str) -> Response:
     copy = _VOICE_COPY[language]
     _set_voice_state(session_id, "LISTENING")
-    twiml = VoiceResponse()
-    gather = Gather(
-        input="speech",
-        action="/voice/webhook",
-        method="POST",
-        speech_timeout="auto",
-        language=copy["gather_language"],
-    )
-    gather.say(copy["greeting"], voice=copy["voice"])
-    twiml.append(gather)
-    twiml.say(copy["no_input"], voice=copy["voice"])
-    return Response(content=str(twiml), media_type="application/xml")
+    resp = ET.Element("Response")
+    gather = ET.SubElement(resp, "Gather", input="speech", action="/voice/webhook", method="POST", speech_timeout="auto", language=copy["gather_language"])
+    say = ET.SubElement(gather, "Say", voice=copy["voice"])
+    say.text = copy["greeting"]
+    fallback = ET.SubElement(resp, "Say", voice=copy["voice"])
+    fallback.text = copy["no_input"]
+    xml_str = ET.tostring(resp, encoding="unicode")
+    return Response(content=xml_str, media_type="application/xml")
 
 
 @router.post("/webhook")
@@ -131,11 +127,6 @@ async def voice_webhook(
     CallSid: str = Form(default=""),  # noqa: N803
     service: AgentService = Depends(get_agent_service),
 ) -> Response:
-    """Twilio voice webhook. Reuses the same LangGraph agent as chat and SMS.
-
-    Flow: Phone -> Twilio -> language selection -> Speech-to-text -> FastAPI -> LangGraph
-          -> Appointment Tools -> Response -> Text-to-speech -> Twilio -> Phone
-    """
     session_id = _voice_session_id(From or CallSid or "unknown")
     speech = (SpeechResult or "").strip()
     digits = (Digits or "").strip()
@@ -150,7 +141,7 @@ async def voice_webhook(
         return _greeting_response(session_id, selected)
 
     copy = _VOICE_COPY.get(language, _VOICE_COPY["en"])
-    twiml = VoiceResponse()
+    resp = ET.Element("Response")
 
     if not speech:
         return _greeting_response(session_id, language)
@@ -165,18 +156,13 @@ async def voice_webhook(
         if response.appointment and response.appointment.get("type") == "confirm":
             reply += copy["confirm_hint"]
 
-        twiml.say(reply, voice=copy["voice"])
+        say = ET.SubElement(resp, "Say", voice=copy["voice"])
+        say.text = reply
 
         if response.appointment and response.appointment.get("type") not in ("booked", "cancelled_by_user"):
-            gather = Gather(
-                input="speech",
-                action="/voice/webhook",
-                method="POST",
-                speech_timeout="auto",
-                language=copy["gather_language"],
-            )
-            gather.say(copy["next_prompt"], voice=copy["voice"])
-            twiml.append(gather)
+            gather = ET.SubElement(resp, "Gather", input="speech", action="/voice/webhook", method="POST", speech_timeout="auto", language=copy["gather_language"])
+            say_next = ET.SubElement(gather, "Say", voice=copy["voice"])
+            say_next.text = copy["next_prompt"]
             _set_voice_state(session_id, "LISTENING")
         else:
             _set_voice_state(session_id, "IDLE")
@@ -185,10 +171,99 @@ async def voice_webhook(
     except AgentServiceError:
         logger.exception("Voice request failed for session %s", session_id)
         _set_voice_state(session_id, "ERROR")
-        twiml.say(copy["unavailable"], voice=copy["voice"])
-    except Exception:  # pragma: no cover
+        say_err = ET.SubElement(resp, "Say", voice=copy["voice"])
+        say_err.text = copy["unavailable"]
+    except Exception:
         logger.exception("Unexpected voice failure for session %s", session_id)
         _set_voice_state(session_id, "ERROR")
-        twiml.say(copy["unavailable"], voice=copy["voice"])
+        say_err = ET.SubElement(resp, "Say", voice=copy["voice"])
+        say_err.text = copy["unavailable"]
 
-    return Response(content=str(twiml), media_type="application/xml")
+    xml_str = ET.tostring(resp, encoding="unicode")
+    return Response(content=xml_str, media_type="application/xml")
+
+
+def _clean_digits(raw: str) -> str:
+    return raw.strip().strip('"')
+
+
+def _exotel_gather(prompt_text: str, *, max_digits: int = 1, finish_on_key: str = "", timeout: int = 8, repeat: int = 1) -> JSONResponse:
+    return JSONResponse(
+        {
+            "gather_prompt": {"text": prompt_text},
+            "max_input_digits": max_digits,
+            "finish_on_key": finish_on_key,
+            "input_timeout": timeout,
+            "repeat_menu": repeat,
+            "repeat_gather_prompt": {"text": prompt_text},
+        }
+    )
+
+
+def _exotel_flow_turn(session_id: str, language: str, message: str, service: AgentService) -> JSONResponse:
+    copy = _VOICE_COPY[language]
+    try:
+        request = ChatRequest(session_id=session_id, message=message, language=LanguageCode(language))
+        response = service.handle_chat(request, channel="voice")
+        reply = response.message
+        appointment = response.appointment or {}
+        kind = appointment.get("type")
+
+        if kind in ("hospital_options", "doctor_options", "slot_options"):
+            items = appointment.get("hospitals") or appointment.get("doctors") or appointment.get("slots") or []
+            lines = [reply]
+            for index, item in enumerate(items, start=1):
+                label = item.get("name") or f"{item.get('date')} {item.get('start_time')}"
+                lines.append(f"{index}. {label}")
+            return _exotel_gather(" ".join(lines), max_digits=2, finish_on_key="#")
+
+        if kind == "confirm":
+            return _exotel_gather(f"{reply} Press 1 to confirm, or 2 to cancel.", max_digits=1)
+
+        if kind in ("booked", "cancelled_by_user"):
+            _EXOTEL_STAGES[session_id] = "DONE"
+            return _exotel_gather(f"{reply} {_EXOTEL_GOODBYE_TEXT[language]}", max_digits=1, timeout=1, repeat=0)
+
+        return _exotel_gather(reply, max_digits=2, finish_on_key="#")
+    except Exception:
+        logger.exception("Exotel voice flow failed for session %s", session_id)
+        _EXOTEL_STAGES[session_id] = "DONE"
+        return _exotel_gather(copy["unavailable"], max_digits=1, timeout=1, repeat=0)
+
+
+@router.get("/webhook")
+def voice_webhook_exotel(
+    CallSid: str = Query(default=""),  # noqa: N803
+    From: str = Query(default=""),  # noqa: N803
+    digits: str = Query(default=""),  # noqa: N803
+    service: AgentService = Depends(get_agent_service),
+) -> JSONResponse:
+    """Exotel's Gather applet (dynamic-URL mode) calls back via GET and expects
+    this JSON contract. DTMF-only: there is no speech recognition on this path."""
+    session_id = _voice_session_id(From or CallSid or "unknown")
+    pressed = _clean_digits(digits)
+    stage = _EXOTEL_STAGES.get(session_id, "LANG")
+
+    if stage == "LANG":
+        selected = _language_from_input(pressed, "")
+        if selected is None:
+            return _exotel_gather("Welcome to Rural Care AI. For English press 1. Telugu కొరకు 2 నొక్కండి.")
+        _VOICE_LANGUAGES[session_id] = selected
+        _EXOTEL_STAGES[session_id] = "MENU"
+        return _exotel_gather(_EXOTEL_MENU_TEXT[selected])
+
+    language = _VOICE_LANGUAGES.get(session_id, "en")
+
+    if stage == "MENU":
+        action = _EXOTEL_MENU_ACTIONS.get(pressed)
+        if action is None:
+            return _exotel_gather(_EXOTEL_MENU_TEXT[language])
+        _EXOTEL_STAGES[session_id] = "FLOW"
+        return _exotel_flow_turn(session_id, language, action, service)
+
+    if stage == "FLOW":
+        return _exotel_flow_turn(session_id, language, pressed or "yes", service)
+
+    _EXOTEL_STAGES.pop(session_id, None)
+    _VOICE_LANGUAGES.pop(session_id, None)
+    return _exotel_gather(_EXOTEL_GOODBYE_TEXT[language], timeout=1, repeat=0)
