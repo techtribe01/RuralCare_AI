@@ -5,6 +5,7 @@ const BASE = `${API_BASE_URL.replace(/\/$/, '')}/appointments`
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE}${path}`, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     ...init,
   })
@@ -70,7 +71,6 @@ export async function checkSlots(params: { doctor_id: string; date?: string }): 
 }
 
 export async function bookAppointment(payload: {
-  user_id: string
   doctor_id: string
   hospital_id: string
   slot_id: string
@@ -80,19 +80,19 @@ export async function bookAppointment(payload: {
   return request<Appointment>('/book', { method: 'POST', body: JSON.stringify(payload) })
 }
 
-export async function cancelAppointment(appointmentId: string, payload: { user_id: string; confirmation: boolean }): Promise<Appointment> {
+export async function cancelAppointment(appointmentId: string, payload: { confirmation: boolean }): Promise<Appointment> {
   return request<Appointment>(`/${appointmentId}/cancel`, { method: 'POST', body: JSON.stringify(payload) })
 }
 
 export async function rescheduleAppointment(
   appointmentId: string,
-  payload: { user_id: string; new_slot_id: string; confirmation: boolean },
+  payload: { new_slot_id: string; confirmation: boolean },
 ): Promise<Appointment> {
   return request<Appointment>(`/${appointmentId}/reschedule`, { method: 'POST', body: JSON.stringify(payload) })
 }
 
-export async function listAppointments(userId: string): Promise<Appointment[]> {
-  return request<Appointment[]>(`?user_id=${encodeURIComponent(userId)}`)
+export async function listAppointments(): Promise<Appointment[]> {
+  return request<Appointment[]>('')
 }
 
 export async function fetchAppointmentNotifications(appointmentId: string): Promise<NotificationResult[]> {

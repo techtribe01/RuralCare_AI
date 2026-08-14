@@ -16,6 +16,7 @@ import { HospitalCard } from '../components/appointments/HospitalCard'
 import { SlotCard } from '../components/appointments/SlotCard'
 import { StatusBadge } from '../components/appointments/StatusBadge'
 import { StepIndicator } from '../components/appointments/StepIndicator'
+import { PhoneAuthModal } from '../components/auth/PhoneAuthModal'
 import {
   bookAppointment,
   cancelAppointment,
@@ -26,7 +27,7 @@ import {
   searchDoctors,
   searchHospitals,
 } from '../lib/appointments-api'
-import { useChatSession } from '../app/ChatSessionContext'
+import { useAuth } from '../app/AuthContext'
 import { cn } from '../lib/utils'
 import type { ApiError, Appointment, AppointmentStep, Doctor, Hospital, Slot, Specialty } from '../types/appointments'
 
@@ -84,7 +85,8 @@ const stepMotionProps = {
 }
 
 export default function AppointmentsPage() {
-  const { sessionId: userId } = useChatSession()
+  const { isAuthenticated } = useAuth()
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
 
   const [step, setStep] = useState<AppointmentStep>('need')
   const [specialties, setSpecialties] = useState<Specialty[]>([])
@@ -107,6 +109,7 @@ export default function AppointmentsPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [showRescheduleMode, setShowRescheduleMode] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
 
   useEffect(() => {
     setSpecialtiesLoading(true)
@@ -198,69 +201,79 @@ export default function AppointmentsPage() {
     setStep('confirm')
   }
 
-  const handleConfirmBooking = async () => {
-    if (!selectedDoctor || !selectedSlot) return
-    setLoading(true)
-    setError(null)
-    try {
-      const appointment = await bookAppointment({
-        user_id: userId,
-        doctor_id: selectedDoctor.doctor_id,
-        hospital_id: selectedDoctor.hospital_id,
-        slot_id: selectedSlot.slot_id,
-        confirmation: true,
-        channel: 'chat',
-      })
-      setBookedAppointment(appointment)
-      setNotificationStatus('Sent / Demo mode')
-      setStep('success')
-      setShowConfirmDialog(false)
-    } catch (err) {
-      const apiError = err as ApiError
-      setError(apiError)
-      if (apiError.code === 'slot_unavailable') {
-        setSelectedSlot(null)
-        setStep('time')
+  const requireAuth = (action: () => void) => {
+    if (isAuthenticated) {
+      action()
+      return
+    }
+    setPendingAction(() => action)
+    setShowAuthModal(true)
+  }
+
+  const handleConfirmBooking = () =>
+    requireAuth(async () => {
+      if (!selectedDoctor || !selectedSlot) return
+      setLoading(true)
+      setError(null)
+      try {
+        const appointment = await bookAppointment({
+          doctor_id: selectedDoctor.doctor_id,
+          hospital_id: selectedDoctor.hospital_id,
+          slot_id: selectedSlot.slot_id,
+          confirmation: true,
+          channel: 'chat',
+        })
+        setBookedAppointment(appointment)
+        setNotificationStatus('Sent / Demo mode')
+        setStep('success')
+        setShowConfirmDialog(false)
+      } catch (err) {
+        const apiError = err as ApiError
+        setError(apiError)
+        if (apiError.code === 'slot_unavailable') {
+          setSelectedSlot(null)
+          setStep('time')
+        }
+        setShowConfirmDialog(false)
+      } finally {
+        setLoading(false)
       }
-      setShowConfirmDialog(false)
-    } finally {
-      setLoading(false)
-    }
-  }
+    })
 
-  const handleCancel = async () => {
-    if (!bookedAppointment) return
-    setLoading(true)
-    try {
-      await cancelAppointment(bookedAppointment.appointment_id, { user_id: userId, confirmation: true })
-      setShowCancelDialog(false)
-      resetFlow()
-    } catch (err) {
-      setError(err as ApiError)
-      setShowCancelDialog(false)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const handleCancel = () =>
+    requireAuth(async () => {
+      if (!bookedAppointment) return
+      setLoading(true)
+      try {
+        await cancelAppointment(bookedAppointment.appointment_id, { confirmation: true })
+        setShowCancelDialog(false)
+        resetFlow()
+      } catch (err) {
+        setError(err as ApiError)
+        setShowCancelDialog(false)
+      } finally {
+        setLoading(false)
+      }
+    })
 
-  const handleReschedule = async () => {
-    if (!bookedAppointment || !selectedSlot) return
-    setLoading(true)
-    try {
-      const updated = await rescheduleAppointment(bookedAppointment.appointment_id, {
-        user_id: userId,
-        new_slot_id: selectedSlot.slot_id,
-        confirmation: true,
-      })
-      setBookedAppointment(updated)
-      setShowRescheduleMode(false)
-      setStep('success')
-    } catch (err) {
-      setError(err as ApiError)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const handleReschedule = () =>
+    requireAuth(async () => {
+      if (!bookedAppointment || !selectedSlot) return
+      setLoading(true)
+      try {
+        const updated = await rescheduleAppointment(bookedAppointment.appointment_id, {
+          new_slot_id: selectedSlot.slot_id,
+          confirmation: true,
+        })
+        setBookedAppointment(updated)
+        setShowRescheduleMode(false)
+        setStep('success')
+      } catch (err) {
+        setError(err as ApiError)
+      } finally {
+        setLoading(false)
+      }
+    })
 
   const startReschedule = async () => {
     if (!bookedAppointment) return
@@ -655,6 +668,18 @@ export default function AppointmentsPage() {
       >
         <p>This will release your time slot so others can book it.</p>
       </ConfirmationDialog>
+
+      <PhoneAuthModal
+        open={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false)
+          setPendingAction(null)
+        }}
+        onVerified={() => {
+          pendingAction?.()
+          setPendingAction(null)
+        }}
+      />
     </PageContainer>
   )
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Alert } from '../components/ui/Alert'
 import { Card, CardHeader, CardTitle } from '../components/ui/Card'
@@ -15,11 +15,19 @@ import { VoiceControl } from '../components/assistant/VoiceControl'
 import { AgentTrace } from '../components/agent/AgentTrace'
 import { SourceCard } from '../components/agent/SourceCard'
 import { StatusBadge } from '../components/appointments/StatusBadge'
+import { PhoneAuthModal } from '../components/auth/PhoneAuthModal'
 import { useChatSession } from '../app/ChatSessionContext'
 
 export default function AssistantPage() {
   const { messages, latestEvents, latestResponse, latestAppointment, isThinking, error, sendMessage } = useChatSession()
   const [voiceOpen, setVoiceOpen] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+
+  useEffect(() => {
+    if (latestAppointment?.type === 'auth_required') {
+      setShowAuthModal(true)
+    }
+  }, [latestAppointment])
 
   let lastAssistantIndex = -1
   messages.forEach((message, index) => {
@@ -101,8 +109,15 @@ export default function AssistantPage() {
               onSelectDoctor={(id) => sendMessage('', { selected_doctor_id: id })}
               onSelectSlot={(id) => sendMessage('', { selected_slot_id: id })}
               onConfirmBooking={() => sendMessage('YES', { confirm_booking: true })}
+              onVerifyPhone={() => setShowAuthModal(true)}
             />
           ) : null}
+
+          <PhoneAuthModal
+            open={showAuthModal}
+            onClose={() => setShowAuthModal(false)}
+            onVerified={() => sendMessage('confirm', { confirm_booking: true })}
+          />
 
           {voiceOpen ? <VoiceControl onClose={() => setVoiceOpen(false)} /> : null}
 

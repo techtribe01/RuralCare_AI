@@ -142,7 +142,6 @@ class AppointmentFlowEngine:
     def run(self, db: Session, *, state: dict) -> AppointmentFlowResult:
         message = state.get("normalized_message") or state.get("user_message") or ""
         language = state.get("language", "en")
-        user_id = state.get("user_id", "")
         channel = state.get("channel", "chat")
         intent = state.get("intent")
         care_context = dict(state.get("care_context") or {})
@@ -387,13 +386,39 @@ class AppointmentFlowEngine:
                 events=events,
             )
 
-        # 7. Validated booking tool -- the ONLY path that may create a CONFIRMED
+        # 7. Booking requires a phone-verified identity for the web chat widget. SMS/voice
+        # already assert identity via Twilio's own inbound webhook (see sms.py/voice.py),
+        # so they keep booking under their existing "sms:<phone>"/"voice:<phone>" id and
+        # are not gated here. If the chat user isn't authenticated yet, pause with
+        # care_context untouched (still "await_confirmation") -- the frontend runs the
+        # OTP flow and resubmits confirm_booking=True on this same session_id, which
+        # resumes exactly at this step without re-collecting anything.
+        if channel == "chat":
+            booking_user_id = state.get("authenticated_user_id")
+            if not booking_user_id:
+                events.append(("auth_required", "Booking requires phone verification; authentication flow started."))
+                return AppointmentFlowResult(
+                    care_context=care_context,
+                    message=_t(
+                        language,
+                        "Before I can book this, I need to verify your mobile number. Please verify to continue.",
+                        "దీన్ని బుక్ చేయడానికి ముందు మీ మొబైల్ నంబర్‌ను నిర్ధారించాలి. కొనసాగించడానికి దయచేసి నిర్ధారించండి.",
+                    ),
+                    next_action="auth_required",
+                    requires_followup=True,
+                    appointment_payload={"type": "auth_required", "proposed": care_context.get("proposed_appointment")},
+                    events=events,
+                )
+        else:
+            booking_user_id = state.get("user_id", "")
+
+        # 8. Validated booking tool -- the ONLY path that may create a CONFIRMED
         # appointment, and only reachable after the explicit confirmation above.
         events.append(("booking_tool_invoked", "Booking tool invoked after explicit user confirmation."))
         try:
             appointment = book_appointment(
                 db,
-                user_id=user_id,
+                user_id=booking_user_id,
                 doctor_id=care_context["doctor_id"],
                 hospital_id=care_context["hospital_id"],
                 slot_id=care_context["slot_id"],

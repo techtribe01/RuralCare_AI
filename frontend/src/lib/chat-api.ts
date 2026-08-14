@@ -4,6 +4,7 @@ import type { ChatRequest, ChatResponse } from '../types/chat'
 export async function sendChatMessage(payload: ChatRequest): Promise<ChatResponse> {
   const response = await fetch(CHAT_ENDPOINT, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
     },

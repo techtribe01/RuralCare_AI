@@ -80,6 +80,7 @@ export type AppointmentPayload =
   | { type: 'doctor_options'; doctors: Doctor[] }
   | { type: 'slot_options'; doctor_id: string; slots: Slot[] }
   | { type: 'confirm'; proposed: Record<string, string | null> }
+  | { type: 'auth_required'; proposed: Record<string, string | null> | null }
   | { type: 'booked'; appointment: Appointment; notification: NotificationResult }
   | { type: 'no_hospitals_found' }
   | { type: 'no_doctors_found' }

@@ -5,6 +5,8 @@ from datetime import date as date_
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
+from app.db.models import AppUser
 from app.db.models import Appointment as AppointmentModel
 from app.db.session import get_db
 from app.models.care_navigation import (
@@ -107,8 +109,10 @@ def check_slots(
 
 
 @router.get("", response_model=list[AppointmentOut])
-def list_appointments(user_id: str = Query(min_length=1), db: Session = Depends(get_db)) -> list[AppointmentOut]:
-    return appointment_service.list_for_user(db, user_id)
+def list_appointments(
+    current_user: AppUser = Depends(get_current_user), db: Session = Depends(get_db)
+) -> list[AppointmentOut]:
+    return appointment_service.list_for_user(db, current_user.id)
 
 
 @router.get("/{appointment_id}", response_model=AppointmentOut)
@@ -120,15 +124,20 @@ def get_appointment(appointment_id: str, db: Session = Depends(get_db)) -> Appoi
 
 
 @router.post("/book", response_model=AppointmentOut)
-def book_appointment(payload: BookAppointmentRequest, db: Session = Depends(get_db)) -> AppointmentOut:
+def book_appointment(
+    payload: BookAppointmentRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AppointmentOut:
     """Every field here is re-validated server-side against the database. The frontend
     may only pass IDs it already received from a prior search response -- it can never
     cause a booking on its own; `confirmation` must be explicitly true or the request
-    is rejected before any database write happens."""
+    is rejected before any database write happens. The booking owner is always the
+    phone-verified current_user, never a client-supplied id."""
     try:
         appointment = appointment_service.book_appointment(
             db,
-            user_id=payload.user_id,
+            user_id=current_user.id,
             doctor_id=payload.doctor_id,
             hospital_id=payload.hospital_id,
             slot_id=payload.slot_id,
@@ -144,10 +153,15 @@ def book_appointment(payload: BookAppointmentRequest, db: Session = Depends(get_
 
 
 @router.post("/{appointment_id}/cancel", response_model=AppointmentOut)
-def cancel_appointment(appointment_id: str, payload: CancelAppointmentRequest, db: Session = Depends(get_db)) -> AppointmentOut:
+def cancel_appointment(
+    appointment_id: str,
+    payload: CancelAppointmentRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AppointmentOut:
     try:
         appointment = appointment_service.cancel_appointment(
-            db, appointment_id=appointment_id, user_id=payload.user_id, confirmation=payload.confirmation
+            db, appointment_id=appointment_id, user_id=current_user.id, confirmation=payload.confirmation
         )
     except AppointmentValidationError as exc:
         _raise_validation_error(exc)
@@ -159,13 +173,16 @@ def cancel_appointment(appointment_id: str, payload: CancelAppointmentRequest, d
 
 @router.post("/{appointment_id}/reschedule", response_model=AppointmentOut)
 def reschedule_appointment(
-    appointment_id: str, payload: RescheduleAppointmentRequest, db: Session = Depends(get_db)
+    appointment_id: str,
+    payload: RescheduleAppointmentRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> AppointmentOut:
     try:
         appointment = appointment_service.reschedule_appointment(
             db,
             appointment_id=appointment_id,
-            user_id=payload.user_id,
+            user_id=current_user.id,
             new_slot_id=payload.new_slot_id,
             confirmation=payload.confirmation,
         )

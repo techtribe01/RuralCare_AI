@@ -34,11 +34,23 @@ class Settings:
     twilio_account_sid: str | None = None
     twilio_auth_token: str | None = None
     twilio_phone_number: str | None = None
+    twilio_verify_service_sid: str | None = None
     cors_allowed_origins: tuple[str, ...] = ("http://localhost:5173", "http://127.0.0.1:5173")
+    app_env: str = "development"
+    session_cookie_name: str = "ruralcare_session"
+    session_ttl_hours: int = 168
 
     @property
     def twilio_configured(self) -> bool:
         return bool(self.twilio_account_sid and self.twilio_auth_token and self.twilio_phone_number)
+
+    @property
+    def twilio_verify_configured(self) -> bool:
+        return bool(self.twilio_account_sid and self.twilio_auth_token and self.twilio_verify_service_sid)
+
+    @property
+    def cookie_secure(self) -> bool:
+        return self.app_env != "development"
 
     @property
     def supabase_configured(self) -> bool:
@@ -69,6 +81,10 @@ def get_settings() -> Settings:
         twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID") or None,
         twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN") or None,
         twilio_phone_number=os.getenv("TWILIO_PHONE_NUMBER") or None,
+        twilio_verify_service_sid=os.getenv("TWILIO_VERIFY_SERVICE_SID") or None,
         cors_allowed_origins=extra_origins or ("http://localhost:5173", "http://127.0.0.1:5173"),
+        app_env=os.getenv("APP_ENV", "development"),
+        session_cookie_name=os.getenv("SESSION_COOKIE_NAME", "ruralcare_session"),
+        session_ttl_hours=int(os.getenv("SESSION_TTL_HOURS", "168")),
     )
 

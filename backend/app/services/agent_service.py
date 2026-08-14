@@ -6,6 +6,7 @@ import logging
 import uuid
 
 from app.config.settings import get_settings
+from app.db.models import AppUser
 from app.models.schemas import AgentEvent, AgentEventStatus, AgentResponse, ChatRequest, ChatResponse, ConversationRole, ConversationTurn, IntentLabel, LanguageCode, RiskLevel, SourceReference
 from app.models.state import AgentState
 from app.services.agent_graph import AgentGraphFactory
@@ -48,7 +49,7 @@ class AgentService:
             graph=graph,
         )
 
-    def handle_chat(self, request: ChatRequest, channel: str = "chat") -> ChatResponse:
+    def handle_chat(self, request: ChatRequest, channel: str = "chat", current_user: AppUser | None = None) -> ChatResponse:
         """channel identifies which surface originated the turn (chat/voice/sms). It is
         the ONLY thing that differs by channel -- the LangGraph, tools, and services are
         identical, so a booking made over SMS is validated exactly like one made in the
@@ -83,6 +84,7 @@ class AgentService:
             "selected_doctor_id": getattr(request, "selected_doctor_id", None),
             "selected_slot_id": getattr(request, "selected_slot_id", None),
             "confirm_booking": bool(getattr(request, "confirm_booking", False)),
+            "authenticated_user_id": current_user.id if current_user else None,
         }
 
         try:

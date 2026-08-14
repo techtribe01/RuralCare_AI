@@ -95,12 +95,50 @@ class AppointmentSlot(Base):
     doctor: Mapped[Doctor] = relationship(back_populates="slots")
 
 
+class AppUser(Base):
+    """Phone-verified user, created on first successful Twilio Verify OTP check.
+
+    Mirrors the shape of a Supabase `auth.users` row (id/phone/created_at/last_login_at)
+    so it can be swapped for real Supabase Auth later without changing callers.
+    """
+
+    __tablename__ = "app_users"
+
+    id: Mapped[str] = mapped_column(primary_key=True)  # uuid4 hex
+    phone_number: Mapped[str] = mapped_column(unique=True)  # E.164
+    phone_verified: Mapped[bool] = mapped_column(default=False)
+    preferred_language: Mapped[str] = mapped_column(default="en")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AuthSession(Base):
+    """Server-side session created after OTP verification; its id is the opaque value
+    stored in the HttpOnly session cookie. DB-backed (rather than a signed token) so
+    logout/expiry are enforced centrally instead of trusting an unrevocable token."""
+
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[str] = mapped_column(primary_key=True)  # opaque session id
+    user_id: Mapped[str] = mapped_column(ForeignKey("app_users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[AppUser] = relationship()
+
+
 class Appointment(Base):
     """DEMO DATA: fictional appointment/booking record for the RuralCare AI showcase."""
 
     __tablename__ = "appointments"
 
     id: Mapped[str] = mapped_column(primary_key=True)  # appointment_id, displayed to users as "DEMO-XXXXXXXX"
+    # For browser/chat bookings this is app_users.id (a phone-verified user). Inbound
+    # SMS/voice channels still use the "sms:<phone>"/"voice:<phone>" convention (see
+    # app/api/routes/sms.py, voice.py) since those channels assert identity via Twilio's
+    # own inbound webhook rather than this app's OTP flow. Not modeled as a SQLAlchemy FK
+    # since it can point at either source.
     user_id: Mapped[str]
     doctor_id: Mapped[str] = mapped_column(ForeignKey("doctors.id"))
     hospital_id: Mapped[str] = mapped_column(ForeignKey("hospitals.id"))
@@ -120,11 +158,13 @@ class Appointment(Base):
 # Defense-in-depth against double booking: at most one non-cancelled appointment may
 # reference a given slot at a time. Combined with the application-level booking lock and
 # an explicit DB transaction, this prevents two users from ever holding the same slot.
+_ACTIVE_STATUSES = [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED]
 Index(
     "uq_active_appointment_per_slot",
     Appointment.slot_id,
     unique=True,
-    sqlite_where=Appointment.status.in_([AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED]),
+    sqlite_where=Appointment.status.in_(_ACTIVE_STATUSES),
+    postgresql_where=Appointment.status.in_(_ACTIVE_STATUSES),
 )
 
 

@@ -27,7 +27,11 @@ def get_database_url() -> str:
     if settings.database_url:
         url = settings.database_url.strip()
         # Guard against misconfigured REST/API URLs being pasted into DATABASE_URL.
-        if url.startswith(("postgresql://", "postgresql+psycopg2://", "sqlite://")):
+        if url.startswith(("postgresql://", "postgresql+psycopg2://", "postgresql+psycopg://", "sqlite://")):
+            # Normalize the plain "postgresql://" scheme (what Supabase's dashboard
+            # gives you) to the psycopg3 driver SQLAlchemy actually loads.
+            if url.startswith("postgresql://"):
+                url = "postgresql+psycopg://" + url[len("postgresql://") :]
             return url
     return f"sqlite:///{_default_sqlite_path().as_posix()}"
 
@@ -39,13 +43,21 @@ def create_session_factory(database_url: str | None = None) -> tuple[Engine, ses
     throwaway database rather than the shared demo SQLite file.
     """
     url = database_url or get_database_url()
-    connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
+    is_sqlite = url.startswith("sqlite")
+    connect_args = {"check_same_thread": False} if is_sqlite else {}
     engine_kwargs: dict = {"connect_args": connect_args, "future": True}
-    if url.startswith("sqlite") and ":memory:" in url:
+    if is_sqlite and ":memory:" in url:
         # In-memory SQLite is per-connection: FastAPI runs sync endpoints in a worker
         # thread, so without a shared connection the request thread sees an empty
         # database even though the test/setup thread already created and seeded it.
         engine_kwargs["poolclass"] = StaticPool
+    if not is_sqlite:
+        # Supabase's pooled connection string (port 6543) runs pgbouncer in
+        # transaction mode, which is incompatible with server-side prepared
+        # statements -- disable them on the psycopg3 driver. pool_pre_ping avoids
+        # handing out dead connections after the pooler recycles them.
+        engine_kwargs["pool_pre_ping"] = True
+        engine_kwargs["connect_args"] = {"prepare_threshold": None}
     engine = create_engine(url, **engine_kwargs)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
     return engine, factory

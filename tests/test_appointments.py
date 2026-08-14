@@ -78,7 +78,8 @@ def test_slot_search_returns_only_available_slots(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # TEST 4 — Booking without confirmation
 # ---------------------------------------------------------------------------
-def test_booking_without_confirmation_is_rejected(client: TestClient) -> None:
+def test_booking_without_confirmation_is_rejected(authenticated_client) -> None:
+    client, _ = authenticated_client
     doctors = client.get("/appointments/doctors", params={"specialty": "General Medicine"}).json()
     doctor = doctors[0]
     slots = client.get("/appointments/slots", params={"doctor_id": doctor["doctor_id"]}).json()
@@ -87,7 +88,6 @@ def test_booking_without_confirmation_is_rejected(client: TestClient) -> None:
     response = client.post(
         "/appointments/book",
         json={
-            "user_id": "test-user-1",
             "doctor_id": doctor["doctor_id"],
             "hospital_id": doctor["hospital_id"],
             "slot_id": slot["slot_id"],
@@ -98,10 +98,7 @@ def test_booking_without_confirmation_is_rejected(client: TestClient) -> None:
     assert response.json()["detail"]["code"] == "confirmation_required"
 
 
-# ---------------------------------------------------------------------------
-# TEST 5 — Valid booking
-# ---------------------------------------------------------------------------
-def test_valid_booking_creates_appointment_and_marks_slot_booked(client: TestClient) -> None:
+def test_unauthenticated_booking_is_rejected(client: TestClient) -> None:
     doctors = client.get("/appointments/doctors", params={"specialty": "General Medicine"}).json()
     doctor = doctors[0]
     slots = client.get("/appointments/slots", params={"doctor_id": doctor["doctor_id"]}).json()
@@ -110,7 +107,29 @@ def test_valid_booking_creates_appointment_and_marks_slot_booked(client: TestCli
     response = client.post(
         "/appointments/book",
         json={
-            "user_id": "test-user-book",
+            "doctor_id": doctor["doctor_id"],
+            "hospital_id": doctor["hospital_id"],
+            "slot_id": slot["slot_id"],
+            "confirmation": True,
+        },
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "unauthenticated"
+
+
+# ---------------------------------------------------------------------------
+# TEST 5 — Valid booking
+# ---------------------------------------------------------------------------
+def test_valid_booking_creates_appointment_and_marks_slot_booked(authenticated_client) -> None:
+    client, _ = authenticated_client
+    doctors = client.get("/appointments/doctors", params={"specialty": "General Medicine"}).json()
+    doctor = doctors[0]
+    slots = client.get("/appointments/slots", params={"doctor_id": doctor["doctor_id"]}).json()
+    slot = slots[0]
+
+    response = client.post(
+        "/appointments/book",
+        json={
             "doctor_id": doctor["doctor_id"],
             "hospital_id": doctor["hospital_id"],
             "slot_id": slot["slot_id"],
@@ -130,23 +149,23 @@ def test_valid_booking_creates_appointment_and_marks_slot_booked(client: TestCli
 # ---------------------------------------------------------------------------
 # TEST 6 — Duplicate booking
 # ---------------------------------------------------------------------------
-def test_duplicate_booking_is_rejected(client: TestClient) -> None:
+def test_duplicate_booking_is_rejected(client: TestClient, login) -> None:
     doctors = client.get("/appointments/doctors", params={"specialty": "Cardiology"}).json()
     doctor = doctors[0]
     slots = client.get("/appointments/slots", params={"doctor_id": doctor["doctor_id"]}).json()
     slot = slots[0]
 
     payload = {
-        "user_id": "test-user-dup-1",
         "doctor_id": doctor["doctor_id"],
         "hospital_id": doctor["hospital_id"],
         "slot_id": slot["slot_id"],
         "confirmation": True,
     }
+    login("+15550000010")
     first = client.post("/appointments/book", json=payload)
     assert first.status_code == 200
 
-    payload["user_id"] = "test-user-dup-2"
+    login("+15550000011")
     second = client.post("/appointments/book", json=payload)
     assert second.status_code == 409
     assert second.json()["detail"]["code"] == "slot_unavailable"
@@ -155,7 +174,8 @@ def test_duplicate_booking_is_rejected(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # TEST 7 — Cancellation
 # ---------------------------------------------------------------------------
-def test_cancellation_marks_appointment_cancelled_and_slot_available(client: TestClient) -> None:
+def test_cancellation_marks_appointment_cancelled_and_slot_available(authenticated_client) -> None:
+    client, _ = authenticated_client
     doctors = client.get("/appointments/doctors", params={"specialty": "General Medicine"}).json()
     doctor = doctors[0]
     slots = client.get("/appointments/slots", params={"doctor_id": doctor["doctor_id"]}).json()
@@ -167,7 +187,6 @@ def test_cancellation_marks_appointment_cancelled_and_slot_available(client: Tes
     book = client.post(
         "/appointments/book",
         json={
-            "user_id": "test-user-cancel",
             "doctor_id": doctor["doctor_id"],
             "hospital_id": doctor["hospital_id"],
             "slot_id": slot["slot_id"],
@@ -179,7 +198,7 @@ def test_cancellation_marks_appointment_cancelled_and_slot_available(client: Tes
 
     cancel = client.post(
         f"/appointments/{appointment_id}/cancel",
-        json={"user_id": "test-user-cancel", "confirmation": True},
+        json={"confirmation": True},
     )
     assert cancel.status_code == 200
     assert cancel.json()["status"] == "CANCELLED"
@@ -190,10 +209,39 @@ def test_cancellation_marks_appointment_cancelled_and_slot_available(client: Tes
     assert released["status"] == "AVAILABLE"
 
 
+def test_cross_user_cancel_is_forbidden(client: TestClient, login) -> None:
+    doctors = client.get("/appointments/doctors", params={"specialty": "General Medicine"}).json()
+    doctor = doctors[0]
+    slots = client.get("/appointments/slots", params={"doctor_id": doctor["doctor_id"]}).json()
+    available = [s for s in slots if s["status"] == "AVAILABLE"]
+    if not available:
+        pytest.skip("No available slots for cross-user cancel test")
+    slot = available[0]
+
+    login("+15550000020")
+    book = client.post(
+        "/appointments/book",
+        json={
+            "doctor_id": doctor["doctor_id"],
+            "hospital_id": doctor["hospital_id"],
+            "slot_id": slot["slot_id"],
+            "confirmation": True,
+        },
+    )
+    assert book.status_code == 200
+    appointment_id = book.json()["appointment_id"]
+
+    login("+15550000021")
+    cancel = client.post(f"/appointments/{appointment_id}/cancel", json={"confirmation": True})
+    assert cancel.status_code == 403
+    assert cancel.json()["detail"]["code"] == "forbidden"
+
+
 # ---------------------------------------------------------------------------
 # TEST 8 — Rescheduling
 # ---------------------------------------------------------------------------
-def test_rescheduling_releases_old_slot_and_books_new(client: TestClient) -> None:
+def test_rescheduling_releases_old_slot_and_books_new(authenticated_client) -> None:
+    client, _ = authenticated_client
     doctors = client.get("/appointments/doctors", params={"specialty": "General Medicine"}).json()
     doctor = doctors[0]
     slots = client.get("/appointments/slots", params={"doctor_id": doctor["doctor_id"]}).json()
@@ -205,7 +253,6 @@ def test_rescheduling_releases_old_slot_and_books_new(client: TestClient) -> Non
     book = client.post(
         "/appointments/book",
         json={
-            "user_id": "test-user-reschedule",
             "doctor_id": doctor["doctor_id"],
             "hospital_id": doctor["hospital_id"],
             "slot_id": old_slot["slot_id"],
@@ -217,7 +264,7 @@ def test_rescheduling_releases_old_slot_and_books_new(client: TestClient) -> Non
 
     reschedule = client.post(
         f"/appointments/{appointment_id}/reschedule",
-        json={"user_id": "test-user-reschedule", "new_slot_id": new_slot["slot_id"], "confirmation": True},
+        json={"new_slot_id": new_slot["slot_id"], "confirmation": True},
     )
     assert reschedule.status_code == 200
     assert reschedule.json()["slot"]["slot_id"] == new_slot["slot_id"]
@@ -234,14 +281,14 @@ def test_rescheduling_releases_old_slot_and_books_new(client: TestClient) -> Non
 # ---------------------------------------------------------------------------
 # TEST 9 — Invalid slot
 # ---------------------------------------------------------------------------
-def test_invalid_slot_booking_is_rejected_safely(client: TestClient) -> None:
+def test_invalid_slot_booking_is_rejected_safely(authenticated_client) -> None:
+    client, _ = authenticated_client
     doctors = client.get("/appointments/doctors", params={"specialty": "General Medicine"}).json()
     doctor = doctors[0]
 
     response = client.post(
         "/appointments/book",
         json={
-            "user_id": "test-user-invalid",
             "doctor_id": doctor["doctor_id"],
             "hospital_id": doctor["hospital_id"],
             "slot_id": "slot-does-not-exist",
@@ -252,7 +299,8 @@ def test_invalid_slot_booking_is_rejected_safely(client: TestClient) -> None:
     assert response.json()["detail"]["code"] == "slot_not_found"
 
 
-def test_wrong_doctor_slot_combination_rejected(client: TestClient) -> None:
+def test_wrong_doctor_slot_combination_rejected(authenticated_client) -> None:
+    client, _ = authenticated_client
     doctors = client.get("/appointments/doctors", params={"specialty": "General Medicine"}).json()
     doctor = doctors[0]
     cardio_doctors = client.get("/appointments/doctors", params={"specialty": "Cardiology"}).json()
@@ -261,7 +309,6 @@ def test_wrong_doctor_slot_combination_rejected(client: TestClient) -> None:
     response = client.post(
         "/appointments/book",
         json={
-            "user_id": "test-user-mismatch",
             "doctor_id": doctor["doctor_id"],
             "hospital_id": doctor["hospital_id"],
             "slot_id": cardio_slot["slot_id"],
@@ -297,7 +344,7 @@ class _BrokenAgentService(AgentService):
     """AgentService is a slots dataclass (no instance __dict__), so a subclass override
     is used here instead of monkeypatching an instance attribute."""
 
-    def handle_chat(self, request, channel="chat"):  # noqa: ANN001
+    def handle_chat(self, request, channel="chat", current_user=None):  # noqa: ANN001
         raise AgentServiceError("Voice unavailable")
 
 
@@ -366,7 +413,8 @@ def test_multilingual_appointment_uses_same_workflow(client: TestClient) -> None
 # ---------------------------------------------------------------------------
 # Notification service
 # ---------------------------------------------------------------------------
-def test_notification_record_created_on_booking(client: TestClient) -> None:
+def test_notification_record_created_on_booking(authenticated_client) -> None:
+    client, _ = authenticated_client
     doctors = client.get("/appointments/doctors", params={"specialty": "Cardiology"}).json()
     doctor = doctors[0]
     slots = client.get("/appointments/slots", params={"doctor_id": doctor["doctor_id"]}).json()
@@ -378,7 +426,6 @@ def test_notification_record_created_on_booking(client: TestClient) -> None:
     book = client.post(
         "/appointments/book",
         json={
-            "user_id": "test-user-notify",
             "doctor_id": doctor["doctor_id"],
             "hospital_id": doctor["hospital_id"],
             "slot_id": slot["slot_id"],

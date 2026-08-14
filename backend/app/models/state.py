@@ -8,6 +8,7 @@ from .schemas import AgentEvent, AgentResponse, ConversationTurn
 class AgentState(TypedDict, total=False):
     user_id: str
     session_id: str
+    authenticated_user_id: str | None
     channel: str
     language: str
     language_confidence: float

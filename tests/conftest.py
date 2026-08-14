@@ -19,6 +19,7 @@ from app.db.models import AppointmentSlot, Doctor, Hospital, Specialty  # noqa: 
 from app.db.session import Base, create_session_factory, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.care_navigation_enums import ConsultationType, EntityStatus, HospitalType, SlotStatus  # noqa: E402
+from app.services.twilio_verify_service import TwilioVerifyService  # noqa: E402
 
 
 @pytest.fixture()
@@ -144,3 +145,26 @@ def client(test_db) -> Generator[TestClient, None, None]:
         yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def login(client: TestClient, monkeypatch):
+    """Drives the real /api/auth endpoints with Twilio Verify mocked out, so tests get a
+    real session cookie on `client` without ever calling Twilio."""
+    monkeypatch.setattr(TwilioVerifyService, "start_verification", lambda self, phone_number: None)
+    monkeypatch.setattr(TwilioVerifyService, "check_verification", lambda self, phone_number, code: code == "123456")
+
+    def _login(phone_number: str) -> str:
+        send = client.post("/api/auth/send-otp", json={"phone_number": phone_number})
+        assert send.status_code == 200, send.text
+        verify = client.post("/api/auth/verify-otp", json={"phone_number": phone_number, "code": "123456"})
+        assert verify.status_code == 200, verify.text
+        return verify.json()["user_id"]
+
+    return _login
+
+
+@pytest.fixture()
+def authenticated_client(client: TestClient, login) -> tuple[TestClient, str]:
+    user_id = login("+15550000001")
+    return client, user_id

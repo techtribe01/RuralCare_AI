@@ -102,7 +102,6 @@ class AppointmentOut(BaseModel):
 
 
 class BookAppointmentRequest(BaseModel):
-    user_id: str = Field(min_length=1)
     doctor_id: str = Field(min_length=1)
     hospital_id: str = Field(min_length=1)
     slot_id: str = Field(min_length=1)
@@ -111,12 +110,10 @@ class BookAppointmentRequest(BaseModel):
 
 
 class CancelAppointmentRequest(BaseModel):
-    user_id: str = Field(min_length=1)
     confirmation: bool = False
 
 
 class RescheduleAppointmentRequest(BaseModel):
-    user_id: str = Field(min_length=1)
     new_slot_id: str = Field(min_length=1)
     confirmation: bool = False
 

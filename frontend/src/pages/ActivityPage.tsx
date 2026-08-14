@@ -10,6 +10,7 @@ import { AppointmentCard } from '../components/appointments/AppointmentCard'
 import { EmptyState } from '../components/appointments/EmptyState'
 import { StatusBadge } from '../components/appointments/StatusBadge'
 import { listAppointments } from '../lib/appointments-api'
+import { useAuth } from '../app/AuthContext'
 import { useChatSession } from '../app/ChatSessionContext'
 import { cn } from '../lib/utils'
 import type { Appointment } from '../types/appointments'
@@ -123,20 +124,28 @@ function AppointmentSkeleton() {
 export default function ActivityPage() {
   const navigate = useNavigate()
   const { messages, sessionId } = useChatSession()
+  const { isAuthenticated, checkingSession } = useAuth()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (checkingSession) return
+    if (!isAuthenticated) {
+      setAppointments([])
+      setLoadError(null)
+      setIsLoadingAppointments(false)
+      return
+    }
     setIsLoadingAppointments(true)
-    listAppointments(sessionId)
+    listAppointments()
       .then((data) => {
         setAppointments(data)
         setLoadError(null)
       })
       .catch(() => setLoadError('Could not load appointment history.'))
       .finally(() => setIsLoadingAppointments(false))
-  }, [sessionId])
+  }, [isAuthenticated, checkingSession])
 
   const recentMessages = messages.slice(-5).reverse()
   const { today, earlier } = groupMessagesByDay(recentMessages)
@@ -214,6 +223,13 @@ export default function ActivityPage() {
                   />
                 ))}
               </div>
+            ) : !isAuthenticated ? (
+              <EmptyState
+                title="Verify your mobile number"
+                description="Book an appointment to verify your mobile number and see your appointment history here."
+                actionLabel="Find a doctor"
+                onAction={() => navigate('/appointments')}
+              />
             ) : (
               <EmptyState
                 title="No appointments yet"

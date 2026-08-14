@@ -16,6 +16,7 @@ type AppointmentOptionsPanelProps = {
   onSelectDoctor?: (doctorId: string) => void
   onSelectSlot?: (slotId: string) => void
   onConfirmBooking?: () => void
+  onVerifyPhone?: () => void
 }
 
 export function AppointmentOptionsPanel({
@@ -25,6 +26,7 @@ export function AppointmentOptionsPanel({
   onSelectDoctor,
   onSelectSlot,
   onConfirmBooking,
+  onVerifyPhone,
 }: AppointmentOptionsPanelProps) {
   if (payload.type === 'collect_specialty') {
     return (
@@ -110,6 +112,20 @@ export function AppointmentOptionsPanel({
         </ul>
         <div className="mt-4">
           <Button onClick={onConfirmBooking}>Confirm booking</Button>
+        </div>
+      </Card>
+    )
+  }
+
+  if (payload.type === 'auth_required') {
+    return (
+      <Card>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">Verify your mobile number</p>
+        <p className="mt-2 text-sm text-text-secondary">
+          Before I can book this appointment, I need to verify your mobile number with a quick SMS code.
+        </p>
+        <div className="mt-4">
+          <Button onClick={onVerifyPhone}>Verify mobile number</Button>
         </div>
       </Card>
     )

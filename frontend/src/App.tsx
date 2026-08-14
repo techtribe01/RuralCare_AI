@@ -1,4 +1,5 @@
 import { BrowserRouter } from 'react-router-dom'
+import { AuthProvider } from './app/AuthContext'
 import { ChatSessionProvider } from './app/ChatSessionContext'
 import { AppRoutes } from './routes'
 import { ToastProvider } from './components/ui/Toast'
@@ -9,9 +10,11 @@ function App() {
     <BrowserRouter>
       <TooltipProvider>
         <ToastProvider>
-          <ChatSessionProvider>
-            <AppRoutes />
-          </ChatSessionProvider>
+          <AuthProvider>
+            <ChatSessionProvider>
+              <AppRoutes />
+            </ChatSessionProvider>
+          </AuthProvider>
         </ToastProvider>
       </TooltipProvider>
     </BrowserRouter>

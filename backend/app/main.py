@@ -4,7 +4,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health, chat, appointments, voice, sms
+from app.api.routes import auth, health, chat, appointments, voice, sms
 from app.config.settings import get_settings
 from app.db.session import init_db
 
@@ -40,6 +40,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(appointments.router)
 app.include_router(voice.router)
