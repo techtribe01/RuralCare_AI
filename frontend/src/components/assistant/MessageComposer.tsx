@@ -3,10 +3,7 @@ import { MessageSquareText, Phone, Send } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Textarea } from '../ui/Textarea'
 
-type MessageComposerProps = {
-  onSubmit: (message: string) => Promise<void> | void
-  loading?: boolean
-}
+type MessageComposerProps = { onSubmit: (message: string) => Promise<void> | void; loading?: boolean }
 
 export function MessageComposer({ onSubmit, loading = false }: MessageComposerProps) {
   const [value, setValue] = useState('')
@@ -14,52 +11,22 @@ export function MessageComposer({ onSubmit, loading = false }: MessageComposerPr
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const next = value.trim()
-    if (!next || loading) {
-      return
-    }
+    if (!next || loading) return
     setValue('')
     await onSubmit(next)
   }
 
   return (
-    <form className="rounded-xl border border-border bg-surface p-3 shadow-xs" onSubmit={handleSubmit}>
-      <div className="flex items-end gap-2">
-        <Textarea
-          ariaLabel="Message composer"
-          placeholder="Describe your concern or ask about care options..."
-          value={value}
-          onChange={setValue}
-          rows={2}
-          disabled={loading}
-          className="min-h-[48px]"
-        />
-        <Button type="submit" disabled={loading || !value.trim()} loading={loading} size="md">
-          <Send className="h-4 w-4" aria-hidden="true" />
-          Send
-        </Button>
-      </div>
-      <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <a
-          href="tel:09513886363"
-          className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-border bg-surface px-4 text-sm font-medium text-text-primary shadow-xs transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800"
-        >
-          <Phone className="h-4 w-4" aria-hidden="true" />
-          Talk by Voice
-        </a>
-        <a
-          href="tel:09513886363"
-          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-text-secondary transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800"
-        >
-          <Phone className="h-3.5 w-3.5" aria-hidden="true" />
-          Call 095-138-86363
-        </a>
-        <a
-          href="sms:09513886363"
-          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-text-secondary transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800"
-        >
-          <MessageSquareText className="h-3.5 w-3.5" aria-hidden="true" />
-          SMS 095-138-86363
-        </a>
+    <form onSubmit={handleSubmit} className="mx-auto max-w-3xl">
+      <div className="rounded-[22px] border border-border bg-canvas p-2 shadow-xs focus-within:border-brand-300 focus-within:ring-2 focus-within:ring-brand-100">
+        <div className="flex items-end gap-2">
+          <Textarea ariaLabel="Message composer" placeholder="Write a message..." value={value} onChange={setValue} rows={2} disabled={loading} className="min-h-[52px] border-0 bg-transparent shadow-none focus:ring-0" />
+          <Button type="submit" disabled={loading || !value.trim()} loading={loading} size="md" className="mb-1 rounded-xl"><Send className="size-4" aria-hidden="true" />Send</Button>
+        </div>
+        <div className="flex flex-wrap gap-2 border-t border-border/60 px-2 pt-2">
+          <a href="tel:09513886363" className="inline-flex min-h-[34px] items-center gap-2 rounded-full px-3 text-xs font-medium text-text-secondary hover:bg-brand-50 hover:text-brand-800"><Phone className="size-3.5" aria-hidden="true" />Call 095-138-86363</a>
+          <a href="sms:09513886363" className="inline-flex min-h-[34px] items-center gap-2 rounded-full px-3 text-xs font-medium text-text-secondary hover:bg-brand-50 hover:text-brand-800"><MessageSquareText className="size-3.5" aria-hidden="true" />SMS 095-138-86363</a>
+        </div>
       </div>
     </form>
   )
