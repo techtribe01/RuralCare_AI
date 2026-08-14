@@ -14,9 +14,9 @@ export function Sidebar() {
               end={item.to === '/'}
               className={({ isActive }) =>
                 cn(
-                  'flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors',
+                  'flex min-h-[46px] items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-brand-soft text-brand-700'
+                    ? 'bg-brand-100 text-brand-800 shadow-xs'
                     : 'text-text-secondary hover:bg-surface-muted hover:text-text-primary',
                 )
               }
@@ -35,7 +35,7 @@ export function Sidebar() {
             to={evaluatorNavItem.to}
             className={({ isActive }) =>
               cn(
-                'flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors',
+                'flex min-h-[46px] items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-surface-muted text-text-primary'
                   : 'text-text-secondary hover:bg-surface-muted hover:text-text-primary',
