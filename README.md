@@ -79,6 +79,7 @@ Rather than separate bots for health questions, booking, voice, and SMS, the pro
 | **Human escalation pathway** | High-risk scenarios can be flagged for human review rather than treated as routine guidance. | Available (showcase workflow) |
 | **Hospital search** | Helps users discover appropriate demo healthcare facilities by specialty and location. | Available (demo data) |
 | **Doctor search** | Helps users identify suitable doctors by specialty, hospital, and language. | Available (demo data) |
+| **Phone-based authentication** | Users verify their mobile number with an SMS one-time code (Twilio Verify) before booking, cancelling, or viewing appointment history. | Available |
 | **Appointment slot search** | Surfaces only genuinely available time slots from the booking system. | Available |
 | **Appointment booking** | Supports confirmed booking only after explicit user approval. | Available (demo data) |
 | **Cancellation & rescheduling** | Allows users to cancel or move appointments with server-side validation. | Available |
@@ -338,6 +339,7 @@ Send confirmation / notification
 
 ### Booking safety
 
+- Users must **verify their phone number via OTP** (Twilio Verify) before booking, cancelling, rescheduling, or viewing appointment history.
 - The language model **never writes directly to the appointment database**.
 - Booking occurs only after the user explicitly confirms.
 - The server re-validates doctor, hospital, slot, and availability before committing.
