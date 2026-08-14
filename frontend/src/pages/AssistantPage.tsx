@@ -12,14 +12,13 @@ import { MessageComposer } from '../components/assistant/MessageComposer'
 import { SafetyBanner } from '../components/assistant/SafetyBanner'
 import { AssistantEmptyState } from '../components/assistant/EmptyState'
 import { VoiceControl } from '../components/assistant/VoiceControl'
-import { AgentTrace } from '../components/agent/AgentTrace'
 import { SourceCard } from '../components/agent/SourceCard'
 import { StatusBadge } from '../components/appointments/StatusBadge'
 import { PhoneAuthModal } from '../components/auth/PhoneAuthModal'
 import { useChatSession } from '../app/ChatSessionContext'
 
 export default function AssistantPage() {
-  const { messages, latestEvents, latestResponse, latestAppointment, isThinking, error, sendMessage } = useChatSession()
+  const { messages, latestResponse, latestAppointment, isThinking, error, sendMessage } = useChatSession()
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
 
@@ -40,8 +39,8 @@ export default function AssistantPage() {
     <PageContainer>
       <PageHeader
         eyebrow="Assistant"
-        title="Multilingual care assistant"
-        description="Conversational workspace for health guidance, intent routing, and live agent execution visibility."
+        title="How are you feeling today?"
+        description="Get a calm, practical next step for your health — in your language."
         actions={
           <NavLink
             to="/help-safety"
@@ -62,13 +61,7 @@ export default function AssistantPage() {
 
           <ConversationPanel
             status={
-              latestResponse ? (
-                <span>
-                  Latest intent: <strong>{latestResponse.intent}</strong>
-                </span>
-              ) : (
-                'Ready for a new conversation'
-              )
+              latestResponse ? 'Your care summary is ready' : 'Private guidance, whenever you need it'
             }
             emptyState={<AssistantEmptyState onSendStarter={sendMessage} onOpenVoice={() => setVoiceOpen(true)} />}
           >
@@ -98,7 +91,6 @@ export default function AssistantPage() {
                 </div>
               )
             })}
-            {isThinking ? <MessageBubble role="assistant" text="Agent is thinking..." /> : null}
           </ConversationPanel>
 
           {latestAppointment ? (
@@ -161,7 +153,6 @@ export default function AssistantPage() {
             </div>
           </Card>
 
-          <AgentTrace events={latestEvents} />
         </div>
       </div>
     </PageContainer>
