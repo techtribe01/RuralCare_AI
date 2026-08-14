@@ -12,12 +12,12 @@ export function TopBar() {
   const { currentLanguage } = useChatSession()
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-surface/90 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
+    <header className="sticky top-0 z-40 border-b border-border/80 bg-canvas/90 backdrop-blur supports-[backdrop-filter]:bg-canvas/80">
       <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between gap-4 px-4 lg:px-6">
         <div className="flex items-center gap-3">
           <MobileNav />
           <NavLink to="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
+            <div className="flex size-10 items-center justify-center rounded-2xl bg-brand-700 text-sm font-bold text-white shadow-sm">
               RC
             </div>
             <span className="hidden text-[15px] font-semibold tracking-tight text-text-primary sm:inline">

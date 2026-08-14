@@ -11,19 +11,22 @@ export function ConversationPanel({ children, emptyState, status }: Conversation
   const hasMessages = Children.count(children) > 0
 
   return (
-    <div className="flex min-h-[520px] flex-col rounded-xl border border-border bg-surface shadow-xs">
-      <div className="border-b border-border px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <p className="flex items-center gap-2 text-sm font-medium text-text-primary">
-            <MessageCircle className="h-4 w-4 text-text-muted" aria-hidden="true" />
-            Conversation
-          </p>
-          {status ? <div className="text-xs text-text-secondary">{status}</div> : null}
+    <section className="flex min-h-[560px] flex-col overflow-hidden rounded-[28px] border border-border/80 bg-surface shadow-md">
+      <div className="flex items-center justify-between gap-4 border-b border-border/80 bg-surface px-5 py-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-2xl bg-brand-100 text-brand-800">
+            <MessageCircle className="size-5" aria-hidden="true" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-text-primary">RuralCare assistant</p>
+            <p className="text-xs text-text-muted">A gentle place to start</p>
+          </div>
         </div>
+        {status ? <div className="hidden max-w-[220px] text-right text-xs leading-relaxed text-text-secondary sm:block">{status}</div> : null}
       </div>
-      <div className={hasMessages ? 'flex-1 space-y-4 overflow-auto bg-canvas p-4' : 'flex flex-1 items-center justify-center overflow-auto bg-canvas p-4'}>
+      <div className={hasMessages ? 'flex-1 space-y-5 overflow-auto bg-canvas/70 p-4 sm:p-6' : 'flex flex-1 items-center justify-center overflow-auto bg-canvas/70 p-4 sm:p-6'}>
         {hasMessages ? children : emptyState}
       </div>
-    </div>
+    </section>
   )
 }
